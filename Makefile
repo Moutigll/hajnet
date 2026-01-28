@@ -1,37 +1,25 @@
-NAME	= ft_ping
-BONUS_NAME = hajping
+.PHONY: all ping clean fclean re
 
-CC		= gcc
-CFLAGS	= -Wall -Wextra -Werror
-INCLUDES = -I includes
+include colors.mk
 
-include sources.mk
+all: common ping
 
-all: $(NAME)
+common:
+	@echo "Building common..."
+	$(MAKE) -C common
 
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
-
-$(BUILD_DIR)/%.o: src/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
-
-$(NAME): $(OBJ)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $(NAME) $(OBJ)
-
-bonus: $(BONUS_NAME)
-
-$(BUILD_DIR)/%.o: bonus_src/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
-
-$(BONUS_NAME): $(BONUS_OBJ)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $(BONUS_NAME) $(BONUS_OBJ)
+ping:
+	@echo "Building ping..."
+	$(MAKE) -C ping
 
 clean:
-	rm -rf $(BUILD_DIR)
+	@printf "$(YELLOW)Cleaning all...$(RESET)\n"
+	$(MAKE) -C common clean
+	$(MAKE) -C ping clean
 
-fclean: clean
-	rm -f $(NAME) $(BONUS_NAME)
+fclean:
+	@printf "$(YELLOW)Removing all binaries and object files...$(RESET)\n"
+	$(MAKE) -C common fclean
+	$(MAKE) -C ping fclean
 
 re: fclean all
-
-.PHONY: all clean fclean re bonus
