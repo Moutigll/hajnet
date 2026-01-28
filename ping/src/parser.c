@@ -8,6 +8,7 @@
 
 #include "../includes/ft_ping.h"
 #include "../includes/parser.h"
+#include "../includes/usage.h"
 #include "../includes/utils.h"
 
 typedef enum eLongOption {
@@ -26,6 +27,10 @@ typedef enum eLongOption {
 	OPT_VERBOSE			= 'v',
 	OPT_TIMEOUT			= 'w',
 	OPT_LINGER			= 'W',
+#if defined(HAJ)
+	OPT_V4				= '4',
+	OPT_V6				= '6',
+#endif
 
 	OPT_FLOOD			= 'f',
 	OPT_IP_TIMESTAMP	= 260,
@@ -62,6 +67,10 @@ static const tFtLongOption g_longOptions[] = {
 	{"verbose",			FT_GETOPT_NO_ARGUMENT,		 OPT_VERBOSE},
 	{"timeout",			FT_GETOPT_REQUIRED_ARGUMENT,	 OPT_TIMEOUT},
 	{"linger",			FT_GETOPT_REQUIRED_ARGUMENT,	 OPT_LINGER},
+#if defined(HAJ)
+	{"ipv4",			FT_GETOPT_NO_ARGUMENT,		 OPT_V4},
+	{"ipv6",			FT_GETOPT_NO_ARGUMENT,		 OPT_V6},
+#endif
 
 	{"flood",			FT_GETOPT_NO_ARGUMENT,		 OPT_FLOOD},
 	{"ip-timestamp",	FT_GETOPT_REQUIRED_ARGUMENT,		 OPT_IP_TIMESTAMP},
@@ -152,7 +161,7 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 	memset(result, 0, sizeof(*result));
 
 #if defined(HAJ)
-	const char *shortOpts = "t:c:di:nrT:vw:W:fl:p:qRs:hV";
+	const char *shortOpts = "t:c:di:nrT:vw:W:fl:p:qRs:hV46";
 #else
 	const char *shortOpts = "t:c:di:nrT:vw:W:fl:p:qRs:?V";
 #endif
@@ -183,29 +192,37 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 
 		switch (state.opt)
 		{
-			case OPT_ICMP_ADDRESS: result->options.address = 1; break;
-			case OPT_ICMP_ECHO: result->options.echo = 1; break;
-			case OPT_ICMP_TIMESTAMP: result->options.timestamp = 1; break;
+			case OPT_ICMP_ADDRESS: result->options.address = TRUE; break;
+			case OPT_ICMP_ECHO: result->options.echo = TRUE; break;
+			case OPT_ICMP_TIMESTAMP: result->options.timestamp = TRUE; break;
 			case OPT_TYPE: result->options.type = state.optArg; break;
 
 			case OPT_COUNT: result->options.count =
 				convertNumberOption(state.optArg, 0, 1, argv[0]); break;
-			case OPT_DEBUG: result->options.debug = 1; break;
+			case OPT_DEBUG: result->options.debug = TRUE; break;
 			case OPT_INTERVAL:
 				handleIntervalOption(state.optArg, argv[0], &result->options.interval); break;
-			case OPT_NUMERIC: result->options.numeric = 1; break;
-			case OPT_IGNROUTING: result->options.ignRouting = 1; break;
+			case OPT_NUMERIC: result->options.numeric = TRUE; break;
+			case OPT_IGNROUTING: result->options.ignRouting = TRUE; break;
 			case OPT_TTL: result->options.ttl =
 				convertNumberOption(state.optArg, 255, 0, argv[0]); break;
 			case OPT_TOS: result->options.tos =
 				convertNumberOption(state.optArg, 255, 1, argv[0]); break;
+#if defined (HAJ)
+			case OPT_VERBOSE: result->options.verbose++; break;
+#else
 			case OPT_VERBOSE: result->options.verbose = 1; break;
+#endif
 			case OPT_TIMEOUT: result->options.timeout =
 				convertNumberOption(state.optArg, INT_MAX, 0, argv[0]); break;
 			case OPT_LINGER: result->options.linger =
 				convertNumberOption(state.optArg, INT_MAX, 0, argv[0]); break;
+#if defined(HAJ)
+			case OPT_V4: result->options.v4 = TRUE; break;
+			case OPT_V6: result->options.v6 = TRUE; break;
+#endif
 
-			case OPT_FLOOD: result->options.flood = 1; break;
+			case OPT_FLOOD: result->options.flood = TRUE; break;
 			case OPT_IP_TIMESTAMP:
 				parseIpTsValue(state.optArg, argv[0], &result->options.ipTsType); break;
 			case OPT_PRELOAD:
@@ -218,8 +235,8 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 					&result->options.patternLen,
 					(unsigned char *)result->options.pattBytes);
 				break;
-			case OPT_QUIET: result->options.quiet = 1; break;
-			case OPT_RECORD_ROUTE: result->options.recordRoute = 1; break;
+			case OPT_QUIET: result->options.quiet = TRUE; break;
+			case OPT_RECORD_ROUTE: result->options.recordRoute = TRUE; break;
 			case OPT_PACKET_SIZE: result->options.packetSize =
 				convertNumberOption(state.optArg, 65399, 1, argv[0]); break;
 

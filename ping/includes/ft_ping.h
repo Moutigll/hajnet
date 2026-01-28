@@ -25,6 +25,21 @@
 	#define HELP_SHORT_OPT "?"
 #endif
 
+/**
+ * @brief Enumeration for IP address types
+ * - IP_TYPE_UNSPEC: unspecified
+ * - IP_TYPE_V4: IPv4
+ * - IP_TYPE_V6: IPv6
+ */
+typedef enum eIpType
+{
+	IP_TYPE_V4 = 1,
+#if defined(HAJ)
+	IP_TYPE_UNSPEC = 0,
+	IP_TYPE_V6 = 2
+#endif
+} tIpType;
+
 
 void	handleSigint(int signum);
 

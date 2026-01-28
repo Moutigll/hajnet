@@ -23,7 +23,6 @@ typedef enum eIpTsType
 	IP_TS_ADDR
 } tIpTsType;
 
-
 typedef struct sPingOptions
 {
 	/* Options ICMP type */
@@ -40,9 +39,13 @@ typedef struct sPingOptions
 	tBool		 	ignRouting;	/* set the SO_DONTROUTE option on the socket */
 	int			 	ttl;		/* time to live */
 	int			 	tos;		/* type of service */
-	tBool		 	verbose;	/* verbose output */
+	int			 	verbose;	/* verbose output */
 	int			 	timeout;	/* stop after timeout seconds */
 	int			 	linger;		/* time to linger before close */
+#if defined(HAJ)
+	tBool		 	v4;			/* force IPv4 */
+	tBool		 	v6;			/* force IPv6 */
+#endif
 
 	/* Options for ICMP_ECHO only */
 	tBool		 	flood;		/* flood ping */
@@ -55,14 +58,21 @@ typedef struct sPingOptions
 	int				packetSize;	/* size of ICMP payload */
 } tPingOptions;
 
-/* Parser result */
+/**
+ * @brief Structure to hold the result of argument parsing
+ * - options: parsed ping options
+ * - positionals: array of positional arguments
+ * - posCount: count of positional arguments
+ * - badOpt: invalid option character, if any
+ * - badOptArg: argument for the invalid option, if any
+ */
 typedef struct sParseResult
 {
-	tPingOptions options;
-	char        *positionals[16];
-	int          posCount;
-	char         badOpt;
-	char        *badOptArg;
+	tPingOptions	options;
+	char			*positionals[16];
+	int				posCount;
+	char			badOpt;
+	char			*badOptArg;
 } tParseResult;
 
 

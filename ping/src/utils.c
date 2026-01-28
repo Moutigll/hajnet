@@ -46,6 +46,7 @@ static void
 patternError(const char *progName, const char *text)
 {
 #if defined(HAJ)
+	(void)progName;
 	fprintf(stderr, PROG_NAME ": error in pattern near %s\n", text);
 #else
 	fprintf(stderr, "%s: error in pattern near %s\n", progName, text);
@@ -96,53 +97,3 @@ isRoot(void)
 {
 	return (geteuid() == 0);
 }
-
-// void
-// decodePattern(
-// 	const char		*text,
-// 	int				maxLen,
-// 	int				*patternLen,
-// 	unsigned char	*patternData)
-// {
-// 	int		i = 0;
-// 	char	*old;
-
-// 	while (*text && i < maxLen)
-// 	{
-// 		old = (char *)text;
-// 		/* skip spaces */
-// 		while (*text && isspace((unsigned char)*text))
-// 			text++;
-
-// 		if (!*text)
-// 		{
-// 			fprintf(stderr, PROG_NAME ": error in pattern near %s\n", old);
-// 			exit(1);
-// 		}
-
-// 		int hi = hexCharToInt(*text++);
-// 		if (hi == -1)
-// 		{
-// 			fprintf(stderr, PROG_NAME ": error in pattern near %s\n",
-// 					old);
-// 			exit(1);
-// 		}
-
-// 		int lo = 0;
-// 		if (*text && !isspace((unsigned char)*text))
-// 		{
-// 			lo = hexCharToInt(*text++);
-// 			if (lo == -1)
-// 			{
-// 				fprintf(stderr, PROG_NAME ": error in pattern near %s\n",
-// 						text - 1);
-// 				exit(1);
-// 			}
-// 		}
-// 		/* else : un seul nibble présent -> lo = 0 */
-
-// 		patternData[i++] = (unsigned char)((hi << 4) | lo);
-// 	}
-
-// 	*patternLen = i;
-// }

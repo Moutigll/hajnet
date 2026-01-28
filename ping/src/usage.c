@@ -20,6 +20,7 @@ Usage: %s [-dnrvfqR?V] [-t TYPE] [-c NUMBER] [-i NUMBER] [-T NUM] [-w N]\n\
 void printFullHelp(char *progName)
 {
 #if defined(HAJ)
+	(void)progName;
 	printf("Usage: " PROG_NAME " [OPTION...] HOST ...\n");
 #else
 	printf("Usage: %s [OPTION...] HOST ...\n", progName);

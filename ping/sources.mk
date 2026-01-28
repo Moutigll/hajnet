@@ -10,6 +10,7 @@ COMMON_BUILD	= $(COMMON_DIR)/build
 # Sources
 SRC			= $(SRC_DIR)/main.c \
 			  $(SRC_DIR)/parser.c \
+			  $(SRC_DIR)/resolve.c \
 			  $(SRC_DIR)/utils.c \
 			  $(SRC_DIR)/usage.c
 
