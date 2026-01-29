@@ -3,6 +3,9 @@
 
 #include <stddef.h>
 
+#include "../../common/includes/utils.h"
+#include "socket.h"
+
 /**
  * @brief Convert a numeric option value with validation
  * @param optArg - option argument string
@@ -32,6 +35,20 @@ void decodePattern(
  * @brief Check if the current user is root
  * @return 1 if root, 0 otherwise
  */
-int isRoot(void);
+tBool isRoot(void);
+
+/**
+ * @brief Convert protocol number to string
+ * @param proto - protocol number
+ * @return string representation of the protocol
+ */
+const char *protoToStr(int proto);
+
+/**
+ * @brief Convert socket type to string
+ * @param type - ping socket type
+ * @return string representation of the socket type
+ */
+const char *sockTypeToStr(tPingSocketType type);
 
 #endif

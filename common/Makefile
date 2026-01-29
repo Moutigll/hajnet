@@ -1,5 +1,5 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -Werror --pedantic
+CFLAGS  = -Wall -Wextra -Werror --pedantic -fsanitize=address -fno-omit-frame-pointer
 INCLUDES= -I includes
 
 include ../colors.mk

@@ -53,7 +53,7 @@ typedef enum eLongOption {
 static const tFtLongOption g_longOptions[] = {
 	{"address", 		FT_GETOPT_NO_ARGUMENT,		 OPT_ICMP_ADDRESS},
 	{"echo",			FT_GETOPT_NO_ARGUMENT,		 OPT_ICMP_ECHO},
-	{"mask",			FT_GETOPT_REQUIRED_ARGUMENT,	 OPT_ICMP_ADDRESS},
+	{"mask",			FT_GETOPT_NO_ARGUMENT,	 OPT_ICMP_ADDRESS},
 	{"timestamp",		FT_GETOPT_NO_ARGUMENT,		 OPT_ICMP_TIMESTAMP},
 	{"type",			FT_GETOPT_REQUIRED_ARGUMENT,	 OPT_TYPE},
 

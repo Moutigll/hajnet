@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,8 +93,34 @@ decodePattern(
 	*patternLen = i;
 }
 
-int
+tBool
 isRoot(void)
 {
 	return (geteuid() == 0);
+}
+
+const char *protoToStr(int proto)
+{
+	if (proto == IPPROTO_ICMP)
+		return "ICMP";
+	else if (proto == IPPROTO_ICMPV6)
+		return "ICMPv6";
+	else if (proto == IPPROTO_UDP)
+		return "UDP";
+	else if (proto == IPPROTO_TCP)
+		return "TCP";
+	else
+		return "UNKNOWN";
+}
+
+const char *sockTypeToStr(tPingSocketType type)
+{
+	if (type == PING_SOCKET_ECHO)
+		return "ECHO";
+	else if (type == PING_SOCKET_TIMESTAMP)
+		return "TIMESTAMP";
+	else if (type == PING_SOCKET_ADDRESS)
+		return "ADDRESS";
+	else
+		return "UNKNOWN";
 }
