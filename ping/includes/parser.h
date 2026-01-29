@@ -32,7 +32,7 @@ typedef struct sPingOptions
 	char			*type;		/* send ICMP type as string */
 
 	/* Options for all types */
-	int			 	count;		/* number of packets to send */
+	unsigned int	count;		/* number of packets to send */
 	tBool		 	debug;		/* set the SO_DEBUG option on the socket */
 	double		 	interval;	/* wait interval seconds between sending each packet */
 	tBool		 	numeric;	/* do not resolve hostnames */

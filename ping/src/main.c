@@ -1,15 +1,11 @@
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <netdb.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
+#include <netdb.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "../includes/ft_ping.h"
-#include "../includes/parser.h"
 #include "../includes/resolve.h"
 #include "../includes/usage.h"
-#include "../includes/socket.h"
 #include "../includes/utils.h"
 
 /**
@@ -130,14 +126,10 @@ setupPingSocket(
 	return (0);
 }
 
-int	main(int argc, char **argv)
+int main(int argc, char **argv)
 {
-	tParseResult			res;
-	int						ret;
-	struct sockaddr_storage	targetAddr;
-	socklen_t				addrLen;
-	struct addrinfo			*allAddrs = NULL;
-	tPingSocket				sockCtx;
+	tParseResult	res;
+	int				ret;
 
 	/* Parse arguments */
 	ret = parseArgs(argc, argv, &res);
@@ -153,59 +145,76 @@ int	main(int argc, char **argv)
 			break;
 	}
 
-	/* Check host */
+	/* Check hosts */
 	if (res.posCount == 0)
 	{
 		printMissingHost(argv[0]);
 		return EXIT_MISSING_HOST;
 	}
 
-	/* Resolve host */
+	/* Iterate over all hosts */
+	for (int i = 0; i < res.posCount; i++)
+	{
+		const char *host = res.positionals[i];
+		struct sockaddr_storage targetAddr;
+		socklen_t addrLen;
+		struct addrinfo *allAddrs = NULL;
+		tPingSocket sockCtx;
+		tPingContext ctx;
+
+		/* Resolve host */
 #if defined(HAJ)
-	tIpType	ipMode = IP_TYPE_UNSPEC;
-	if (res.options.v4)
-		ipMode = IP_TYPE_V4;
-	else if (res.options.v6)
-		ipMode = IP_TYPE_V6;
+		tIpType ipMode = IP_TYPE_UNSPEC;
+		if (res.options.v4)
+			ipMode = IP_TYPE_V4;
+		else if (res.options.v6)
+			ipMode = IP_TYPE_V6;
 #else
-	tIpType ipMode = IP_TYPE_V4;
+		tIpType ipMode = IP_TYPE_V4;
 #endif
-	ret = resolveHost(res.positionals[res.posCount - 1],
-					  &targetAddr,
-					  &addrLen,
-					  &allAddrs,
-					  ipMode);
-	if (ret != 0)
-	{
-		if (res.options.verbose <= 1)
-			fprintf(stderr, "%s: unknown host\n", argv[0]);
-		else
-			fprintf(stderr, "Failed to resolve host '%s': %s\n",
-					res.positionals[res.posCount - 1], gai_strerror(ret));
-		return EXIT_FAILURE;
+		ret = resolveHost(host, &targetAddr, &addrLen, &allAddrs, ipMode);
+		if (ret != 0)
+		{
+			if (res.options.verbose <= 1)
+				fprintf(stderr, "%s: unknown host\n", argv[0]);
+			else
+				fprintf(stderr, "Failed to resolve host '%s': %s\n",
+						host, gai_strerror(ret));
+			continue; // Passer au host suivant
+		}
+
+		/* Verbose logging */
+		if (res.options.verbose > 1)
+			printPrimaryIP(&targetAddr, host);
+		if (res.options.verbose > 2 && allAddrs)
+			printAllResolvedIPs(allAddrs, host);
+
+		/* Setup socket */
+		if (setupPingSocket(&sockCtx, &res.options, &targetAddr) != 0)
+		{
+			if (allAddrs)
+				freeaddrinfo(allAddrs);
+			continue; // Passer au host suivant
+		}
+
+		/* Initialize ping context */
+		memset(&ctx, 0, sizeof(ctx));
+		ctx.opts = res;
+		ctx.sock = sockCtx;
+		ctx.targetAddr = targetAddr;
+		ctx.addrLen = addrLen;
+		ctx.allAddrs = allAddrs;
+
+		/* Run ping loop */
+		runPingLoop(&ctx);
+
+		/* Cleanup */
+		pingSocketClose(&ctx.sock);
+		if (ctx.allAddrs)
+			freeaddrinfo(ctx.allAddrs);
+
+		printf("\n"); // Séparer les résultats entre les hosts
 	}
 
-	/* Verbose logging */
-	if (res.options.verbose > 1)
-		printPrimaryIP(&targetAddr, res.positionals[res.posCount - 1]);
-	if (res.options.verbose > 2 && allAddrs)
-		printAllResolvedIPs(allAddrs, res.positionals[res.posCount - 1]);
-
-	/* Setup socket */
-	if (setupPingSocket(&sockCtx, &res.options, &targetAddr) != 0)
-	{
-		if (allAddrs)
-			freeaddrinfo(allAddrs);
-		return EXIT_FAILURE;
-	}
-
-	/* Start ping loop */
-	// startPing(&sockCtx, &targetAddr, addrLen, &res.options);
-
-	/* Cleanup */
-	pingSocketClose(&sockCtx);
-	if (allAddrs)
-		freeaddrinfo(allAddrs);
-
-	return (EXIT_SUCCESS);
+	return EXIT_SUCCESS;
 }

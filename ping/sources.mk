@@ -12,6 +12,7 @@ SRC			= $(SRC_DIR)/main.c \
 			  $(SRC_DIR)/parser.c \
 			  $(SRC_DIR)/resolve.c \
 			  $(SRC_DIR)/socket.c \
+			  $(SRC_DIR)/ping.c \
 			  $(SRC_DIR)/utils.c \
 			  $(SRC_DIR)/usage.c
 

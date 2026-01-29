@@ -1,6 +1,8 @@
 #ifndef HAJPING_USAGE_H
 #define HAJPING_USAGE_H
 
+#include "ft_ping.h"
+
 void printUsage(char *progName);
 void printFullHelp(char *progName);
 
@@ -34,5 +36,13 @@ void exitAmbiguousOption(const char *progName, const char *badOpt, const char *o
  * @param progName - program name
  */
 void printMissingHost(const char *progName);
+
+/**
+ * @brief Print a summary of ping statistics
+ * @param ctx - ping context containing statistics
+ */
+void printPingSummary(tPingContext *ctx);
+
+void printIcmpHeader(const unsigned char *buf, int len, int isIPv4);
 
 #endif /* HAJPING_USAGE_H */

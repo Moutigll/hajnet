@@ -2,7 +2,7 @@
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
 
 #include "../includes/ft_ping.h" // IWYU pragma: keep
 #include "../includes/utils.h"
