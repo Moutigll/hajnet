@@ -14,6 +14,7 @@ $(COMMON_BUILD):
 	mkdir -p $(COMMON_BUILD)
 
 $(COMMON_BUILD)/%.o: $(COMMON_DIR)/%.c | $(COMMON_BUILD)
+	@mkdir -p $(dir $@)
 	@total=$(words $(COMMON_OBJ)); \
 	current=$$(echo $(COMMON_OBJ) | tr ' ' '\n' | grep -n "$@" | cut -d: -f1); \
 	printf "$(YELLOW)[$$current/$$total] Compiling $<...$(RESET)\r"; \

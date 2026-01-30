@@ -313,4 +313,12 @@ static inline uint32_t ntohl(uint32_t x)
 #endif
 }
 
+/* ------------------ IP Header Printing ------------------ */
+
+/**
+ * @brief Print IPv4 header information in a human-readable format
+ * @param hdr - pointer to IPv4 header
+ */
+void printIpv4Header(const tIpHdr *hdr);
+
 #endif /* HAJ_IP_H */
