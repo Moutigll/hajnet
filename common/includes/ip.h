@@ -1,7 +1,7 @@
 #ifndef HAJ_IP_H
 #define HAJ_IP_H
 
-#include <stdint.h>
+#include "stdint.h"
 
 #define INET_ADDRSTRLEN 16
 #define INET6_ADDRSTRLEN 46
@@ -12,11 +12,11 @@
  */
 typedef enum eIpProtocol
 {
-	IPPROTO_ICMP  = 1,		/* Internet Control Message Protocol */
-	IPPROTO_TCP   = 6,		/* Transmission Control Protocol */
-	IPPROTO_UDP   = 17,		/* User Datagram Protocol */
-	IPPROTO_IPV6  = 41,		/* Internet Protocol version 6 */
-	IPPROTO_ICMPV6 = 58,	/* Internet Control Message Protocol for IPv6 */
+	IPPROTO_ICMP	= 1,		/* Internet Control Message Protocol */
+	IPPROTO_TCP		= 6,		/* Transmission Control Protocol */
+	IPPROTO_UDP		= 17,		/* User Datagram Protocol */
+	IPPROTO_IPV6	= 41,		/* Internet Protocol version 6 */
+	IPPROTO_ICMPV6	= 58,	/* Internet Control Message Protocol for IPv6 */
 } tIpProtocol;
 
 /**

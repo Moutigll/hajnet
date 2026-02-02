@@ -53,13 +53,13 @@ static const char
 {
 	switch (type)
 	{
-		case IP_OPT_EOL:  return "End of Option List";
-		case IP_OPT_NOP:  return "No Operation";
-		case IP_OPT_RR:   return "Record Route";
-		case IP_OPT_TS:   return "Timestamp";
-		case IP_OPT_SECURITY: return "Security";
-		case IP_OPT_LSRR: return "Loose Source and Record Route";
-		default:          return "Unknown Option";
+		case IP_OPT_EOL:		return "End of Option List";
+		case IP_OPT_NOP:		return "No Operation";
+		case IP_OPT_RR:			return "Record Route";
+		case IP_OPT_TS:			return "Timestamp";
+		case IP_OPT_SECURITY:	return "Security";
+		case IP_OPT_LSRR:		return "Loose Source and Record Route";
+		default:			return "Unknown Option";
 	}
 }
 
