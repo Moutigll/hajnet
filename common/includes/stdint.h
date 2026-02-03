@@ -19,9 +19,9 @@ typedef int					int32_t;
 typedef unsigned int		uint32_t;
 
 /* 64-bit signed integer */
-typedef long long			int64_t;
+typedef signed long			int64_t;
 /* 64-bit unsigned integer */
-typedef unsigned long long	uint64_t;
+typedef unsigned long		uint64_t;
 
 /* ---------------- Pointer-sized integer types ---------------- */
 
@@ -63,19 +63,19 @@ typedef uint64_t	uint_least64_t;
 /* ---------------- Fastest minimum-width integer types ---------------- */
 
 /* Fastest signed integer with at least 8 bits */
-typedef int				int_fast8_t;
+typedef signed char		int_fast8_t;
 /* Fastest unsigned integer with at least 8 bits */
-typedef unsigned int	uint_fast8_t;
+typedef unsigned char	uint_fast8_t;
 
 /* Fastest signed integer with at least 16 bits */
-typedef int				int_fast16_t;
+typedef long			int_fast16_t;
 /* Fastest unsigned integer with at least 16 bits */
-typedef unsigned int	uint_fast16_t;
+typedef unsigned long	uint_fast16_t;
 
 /* Fastest signed integer with at least 32 bits */
-typedef int				int_fast32_t;
+typedef long			int_fast32_t;
 /* Fastest unsigned integer with at least 32 bits */
-typedef unsigned int	uint_fast32_t;
+typedef unsigned long	uint_fast32_t;
 
 /* Fastest signed integer with at least 64 bits */
 typedef int64_t			int_fast64_t;

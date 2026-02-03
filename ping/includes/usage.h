@@ -1,7 +1,7 @@
 #ifndef HAJPING_USAGE_H
 #define HAJPING_USAGE_H
 
-#include "ft_ping.h"
+#include "ping.h"
 
 void printUsage(char *progName);
 void printFullHelp(char *progName);
@@ -42,7 +42,5 @@ void printMissingHost(const char *progName);
  * @param ctx - ping context containing statistics
  */
 void printPingSummary(tPingContext *ctx);
-
-void printIcmpHeader(const unsigned char *buf, int len, int isIPv4);
 
 #endif /* HAJPING_USAGE_H */

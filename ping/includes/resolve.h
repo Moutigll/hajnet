@@ -1,10 +1,9 @@
 #ifndef HAJPING_RESOLVE_H
 # define HAJPING_RESOLVE_H
 
-#include <sys/types.h>
 #include <sys/socket.h>
 
-#include "ft_ping.h"
+#include "ping.h"
 
 int resolveHost(
 	const char				*host,

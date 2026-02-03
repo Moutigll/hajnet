@@ -1,10 +1,14 @@
 #ifndef FT_PING_H
 # define FT_PING_H
 
-#include "parser.h"
-#include "socket.h"
 #include <signal.h>
 #include <sys/socket.h>
+
+#include "../../common/includes/icmp.h"
+#include "../../common/includes/ip.h"
+#include "parser.h"
+#include "socket.h"
+
 # define EXIT_SUCCESS 0
 # define EXIT_FAILURE 1
 
@@ -13,7 +17,7 @@
 #define PING_MAX_PATTERN_LEN	256
 #define PING_MAX_POSITIONALS	16
 #define PING_MAX_PACKET_SIZE	1024
-#define ICMP_DATA_OFFSET sizeof(struct icmphdr)
+#define ICMP_DATA_OFFSET sizeof(struct tIcmp4Hdr)
 
 #if defined (HAJ)
 	# define EXIT_MISSING_HOST 2
@@ -27,7 +31,7 @@
 	#define HELP_SHORT_OPT "?"
 #endif
 
-extern volatile sig_atomic_t g_pingInterrupted; /**< Flag set when SIGINT is received */
+extern volatile sig_atomic_t g_pingInterrupted; /* Flag set when SIGINT is received */
 
 /**
  * @brief Enumeration for IP address types
@@ -67,26 +71,41 @@ typedef struct sPingStats
 
 /**
  * @brief Ping context holding all state
- * - opts: parsed CLI options
- * - sock: socket context
- * - targetAddr: primary resolved IP address
- * - addrLen: length of targetAddr
- * - allAddrs: optional full addrinfo list
- * - stats: ping statistics
- * - seq: current ICMP sequence number
- * - startTime: timestamp of first ping sent
  */
 typedef struct sPingContext
 {
-	tParseResult			opts;		/* parsed CLI options */
-	tPingSocket				sock;		/* socket context */
-	struct sockaddr_storage	targetAddr;	/* primary resolved IP */
-	socklen_t				addrLen;	/* length of targetAddr */
-	struct addrinfo			*allAddrs;	/* optional full addrinfo list */
-	tPingStats				stats;		/* ping statistics */
-	unsigned int			seq;		/* current ICMP sequence number */
-	struct timeval			startTime;	/* timestamp of first ping sent */
+	tPingOptions			opts;				/* ping options */
+
+	tPingSocket				sock;				/* ping socket */
+	struct sockaddr_storage	targetAddr;			/* target address */
+	socklen_t				addrLen;			/* length of targetAddr */
+
+	tPingStats				stats;				/* ping statistics */
+	unsigned int			seq;				/* current ICMP sequence number */
+	pid_t					pid;				/* identifier for ICMP */
+	struct timeval			startTime;			/* time when ping started */
+
+	char					targetHost[256];	/* target hostname */
+	char					resolvedIp[INET6_ADDRSTRLEN];	/* resolved IP address */
 } tPingContext;
+
+/**
+ * @brief ICMP Reply Information
+ * - seq: ICMP sequence number
+ * - ttl: Time To Live
+ * - rtt: round-trip time
+ * - type: ICMP type
+ * - code: ICMP code
+ */
+typedef struct sIcmpReplyInfo
+{
+	uint16_t		seq;	/* ICMP sequence number */
+	uint8_t			ttl;	/* Time To Live */
+	struct timeval	rtt;	/* round-trip time */
+	uint8_t			type;	/* ICMP type */
+	uint8_t			code;	/* ICMP code */
+} tIcmpReplyInfo;
+
 
 /**
  * @brief Run the main ping loop according to options

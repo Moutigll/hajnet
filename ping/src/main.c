@@ -2,8 +2,11 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
-#include "../includes/ft_ping.h"
+#include "../../common/includes/ip.h"
+#include "../includes/ping.h"
 #include "../includes/resolve.h"
 #include "../includes/usage.h"
 #include "../includes/utils.h"
@@ -104,14 +107,11 @@ setupPingSocket(
 		return (-1);
 	}
 
-	if (sockCtx->family == AF_INET)
+	if (socketApplyOptions(sockCtx, opts) != 0)
 	{
-		if (socketApplyIpv4Options(sockCtx, opts) != 0)
-		{
-			fprintf(stderr, "Failed to apply IPv4 socket options.\n");
-			pingSocketClose(sockCtx);
-			return (-1);
-		}
+		fprintf(stderr, "Failed to apply socket options.\n");
+		pingSocketClose(sockCtx);
+		return (-1);
 	}
 
 	/* Log socket state for verbose level 2 */
@@ -128,10 +128,10 @@ setupPingSocket(
 
 int main(int argc, char **argv)
 {
-	tParseResult	res;
-	int				ret;
+	tParseResult res;
+	int ret;
 
-	/* Parse arguments */
+	/* Parse command-line arguments */
 	ret = parseArgs(argc, argv, &res);
 	switch (ret)
 	{
@@ -145,14 +145,14 @@ int main(int argc, char **argv)
 			break;
 	}
 
-	/* Check hosts */
+	/* Check that at least one host was provided */
 	if (res.posCount == 0)
 	{
 		printMissingHost(argv[0]);
 		return EXIT_MISSING_HOST;
 	}
 
-	/* Iterate over all hosts */
+	/* Iterate over all provided hosts */
 	for (int i = 0; i < res.posCount; i++)
 	{
 		const char *host = res.positionals[i];
@@ -161,17 +161,18 @@ int main(int argc, char **argv)
 		struct addrinfo *allAddrs = NULL;
 		tPingSocket sockCtx;
 		tPingContext ctx;
+		tIpType ipMode = IP_TYPE_V4;
 
-		/* Resolve host */
 #if defined(HAJ)
-		tIpType ipMode = IP_TYPE_UNSPEC;
+		/* Allow forcing IPv4 / IPv6 */
+		ipMode = IP_TYPE_UNSPEC;
 		if (res.options.v4)
 			ipMode = IP_TYPE_V4;
 		else if (res.options.v6)
 			ipMode = IP_TYPE_V6;
-#else
-		tIpType ipMode = IP_TYPE_V4;
 #endif
+
+		/* Resolve hostname */
 		ret = resolveHost(host, &targetAddr, &addrLen, &allAddrs, ipMode);
 		if (ret != 0)
 		{
@@ -180,40 +181,58 @@ int main(int argc, char **argv)
 			else
 				fprintf(stderr, "Failed to resolve host '%s': %s\n",
 						host, gai_strerror(ret));
-			continue; // Passer au host suivant
+			continue;
 		}
 
-		/* Verbose logging */
+		/* Verbose output */
 		if (res.options.verbose > 1)
 			printPrimaryIP(&targetAddr, host);
 		if (res.options.verbose > 2 && allAddrs)
 			printAllResolvedIPs(allAddrs, host);
 
-		/* Setup socket */
+		/* Setup raw socket */
 		if (setupPingSocket(&sockCtx, &res.options, &targetAddr) != 0)
 		{
 			if (allAddrs)
 				freeaddrinfo(allAddrs);
-			continue; // Passer au host suivant
+			continue;
 		}
 
 		/* Initialize ping context */
 		memset(&ctx, 0, sizeof(ctx));
-		ctx.opts = res;
+		ctx.opts = res.options;
 		ctx.sock = sockCtx;
 		ctx.targetAddr = targetAddr;
 		ctx.addrLen = addrLen;
-		ctx.allAddrs = allAddrs;
+		ctx.seq = 0;
+		ctx.pid = getpid() & 0xFFFF; /* ICMP identifier */
+		strncpy(ctx.targetHost, host, sizeof(ctx.targetHost) - 1);
 
-		/* Run ping loop */
+		/* Fill resolved IP string safely */
+		if (targetAddr.ss_family == AF_INET)
+		{
+			struct sockaddr_in *addr4 = (struct sockaddr_in *)&targetAddr;
+			inet_ntop(AF_INET, &addr4->sin_addr, ctx.resolvedIp, sizeof(ctx.resolvedIp));
+		}
+		else if (targetAddr.ss_family == AF_INET6)
+		{
+			struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&targetAddr;
+			inet_ntop(AF_INET6, &addr6->sin6_addr, ctx.resolvedIp, sizeof(ctx.resolvedIp));
+		}
+		else
+		{
+			snprintf(ctx.resolvedIp, sizeof(ctx.resolvedIp), "unknown");
+		}
+
+		/* Run the ping loop */
 		runPingLoop(&ctx);
 
 		/* Cleanup */
 		pingSocketClose(&ctx.sock);
-		if (ctx.allAddrs)
-			freeaddrinfo(ctx.allAddrs);
+		if (allAddrs)
+			freeaddrinfo(allAddrs);
 
-		printf("\n"); // Séparer les résultats entre les hosts
+		printf("\n"); /* separate hosts */
 	}
 
 	return EXIT_SUCCESS;

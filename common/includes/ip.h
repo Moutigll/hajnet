@@ -1,6 +1,7 @@
 #ifndef HAJ_IP_H
 #define HAJ_IP_H
 
+#include "stddef.h"
 #include "stdint.h"
 
 #define INET_ADDRSTRLEN 16
@@ -12,11 +13,11 @@
  */
 typedef enum eIpProtocol
 {
-	IPPROTO_ICMP	= 1,		/* Internet Control Message Protocol */
-	IPPROTO_TCP		= 6,		/* Transmission Control Protocol */
-	IPPROTO_UDP		= 17,		/* User Datagram Protocol */
-	IPPROTO_IPV6	= 41,		/* Internet Protocol version 6 */
-	IPPROTO_ICMPV6	= 58,	/* Internet Control Message Protocol for IPv6 */
+	IP_PROTO_ICMP	= 1,		/* Internet Control Message Protocol */
+	IP_PROTO_TCP	= 6,		/* Transmission Control Protocol */
+	IP_PROTO_UDP	= 17,		/* User Datagram Protocol */
+	IP_PROTO_IPV6	= 41,		/* Internet Protocol version 6 */
+	IP_PROTO_ICMPV6	= 58,	/* Internet Control Message Protocol for IPv6 */
 } tIpProtocol;
 
 /**
@@ -251,7 +252,7 @@ typedef struct sIp6Hdr
  * @param x - value to convert
  * @return The converted value
  */
-static inline uint16_t htons(uint16_t x)
+static inline uint16_t ipHtons(uint16_t x)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	return ((x << 8) | (x >> 8));
@@ -266,7 +267,7 @@ static inline uint16_t htons(uint16_t x)
  * @param x - value to convert
  * @return The converted value
  */
-static inline uint16_t ntohs(uint16_t x)
+static inline uint16_t ipNtohs(uint16_t x)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	return ((x << 8) | (x >> 8));
@@ -281,7 +282,7 @@ static inline uint16_t ntohs(uint16_t x)
  * @param x - value to convert
  * @return The converted value
  */
-static inline uint32_t htonl(uint32_t x)
+static inline uint32_t ipHtonl(uint32_t x)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	return (
@@ -300,7 +301,7 @@ static inline uint32_t htonl(uint32_t x)
  * @param x - value to convert
  * @return The converted value
  */
-static inline uint32_t ntohl(uint32_t x)
+static inline uint32_t ipNtohl(uint32_t x)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	return (
@@ -320,5 +321,16 @@ static inline uint32_t ntohl(uint32_t x)
  * @param hdr - pointer to IPv4 header
  */
 void printIpv4Header(const tIpHdr *hdr);
+
+/* ------------------ IP Header Parsing ------------------ */
+
+/**
+ * @brief Parse IPv4 header from raw buffer
+ * @param buf - pointer to raw buffer containing IPv4 packet
+ * @param len - length of the buffer in bytes
+ * @param outHdr - pointer to output IPv4 header structure to fill
+ * @return length of the IPv4 header in bytes, or 0 on error
+ */
+size_t parseIpHeaderFromBuffer(const void *buf, size_t len, tIpHdr *outHdr);
 
 #endif /* HAJ_IP_H */

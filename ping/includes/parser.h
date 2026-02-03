@@ -1,8 +1,6 @@
 #ifndef HP_PARSER_H
 # define HP_PARSER_H
 
-# include <stddef.h>
-
 #include "../../common/includes/utils.h"
 
 #define PATTERN_MAX_LEN 256

@@ -1,10 +1,13 @@
 #include <ctype.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include "../includes/ft_ping.h" // IWYU pragma: keep
+#include "../../common/includes/ip.h"
+#if defined(HAJ)
+#include "../includes/ping.h"
+#endif
 #include "../includes/utils.h"
 
 size_t
@@ -101,13 +104,13 @@ isRoot(void)
 
 const char *protoToStr(int proto)
 {
-	if (proto == IPPROTO_ICMP)
+	if (proto == IP_PROTO_ICMP)
 		return "ICMP";
-	else if (proto == IPPROTO_ICMPV6)
+	else if (proto == IP_PROTO_ICMPV6)
 		return "ICMPv6";
-	else if (proto == IPPROTO_UDP)
+	else if (proto == IP_PROTO_UDP)
 		return "UDP";
-	else if (proto == IPPROTO_TCP)
+	else if (proto == IP_PROTO_TCP)
 		return "TCP";
 	else
 		return "UNKNOWN";
@@ -123,4 +126,91 @@ const char *sockTypeToStr(tPingSocketType type)
 		return "ADDRESS";
 	else
 		return "UNKNOWN";
+}
+
+double	ftSqrtNewton(double x)
+{
+	double	current;	/* current approximation */
+	double	previous;	/* previous approximation */
+	double	epsilon;	/* acceptable error margin */
+
+	if (x < 0)	/* invalid input */
+		return (-1);
+	if (x == 0 || x == 1)
+		return (x);
+	epsilon = 0.000001;
+	current = x;
+	previous = 0;
+	while (current - previous > epsilon || previous - current > epsilon)	/* while |current - previous| > epsilon */
+	{
+		previous = current;
+		current = (current + x / current) / 2;	/* y = (y + x/y) / 2 */
+	}
+	return (current);
+}
+
+int
+clampInt(int val, int min, int max)
+{
+	if (val < min)
+		return min;
+	if (val > max)
+		return max;
+	return val;
+}
+
+void
+truncateAndMark(
+	char		*dest,
+	size_t		dest_size,
+	const char	*src,
+	size_t		max_len)
+{
+	size_t src_len = strlen(src);
+
+	if (dest_size == 0)
+		return;
+
+	if (max_len == 0)
+	{
+		/* copy whole string up to dest_size - 1 */
+		size_t copy_len = src_len;
+		if (copy_len >= dest_size)
+			copy_len = dest_size - 1;
+		memcpy(dest, src, copy_len);
+		dest[copy_len] = '\0';
+		return;
+	}
+
+	if (src_len <= max_len)
+	{
+		/* copy whole string */
+		size_t copy_len = src_len;
+		if (copy_len >= dest_size)
+			copy_len = dest_size - 1;
+		memcpy(dest, src, copy_len);
+		dest[copy_len] = '\0';
+	}
+	else
+	{
+		/* truncated: copy max_len - 1 bytes then put '.' as last char */
+		size_t copy_len = max_len;
+		if (copy_len > dest_size - 1)
+			copy_len = dest_size - 1;
+		if (copy_len == 0)
+		{
+			dest[0] = '\0';
+			return;
+		}
+		if (copy_len == 1)
+		{
+			dest[0] = '.';
+			dest[1] = '\0';
+			return;
+		}
+		/* copy copy_len bytes and set last char '.' */
+		memcpy(dest, src, copy_len);
+		dest[copy_len - 1] = '.';
+		dest[copy_len] = '\0';
+	}
 }

@@ -21,6 +21,9 @@ $(COMMON_BUILD)/%.o: $(COMMON_DIR)/%.c | $(COMMON_BUILD)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@; \
 	printf "$(GREEN)[$$current/$$total] Compiled $<        $(RESET)\n"
 
+test: all
+	$(CC) $(CFLAGS) $(COMMON_OBJ) -o test_common
+
 clean:
 	@printf "$(YELLOW)Common: Cleaning build directory...$(RESET)\n"
 	rm -rf $(COMMON_BUILD)

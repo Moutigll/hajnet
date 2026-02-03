@@ -3,26 +3,7 @@
 #include <stdlib.h>
 
 #include "../includes/usage.h"
-
-static double ft_sqrt(double x)
-{
-	if (x < 0.0)
-		return -1.0;
-	if (x == 0.0)
-		return 0.0;
-	
-	double guess = x;
-	double prev;
-	
-	while (1)
-	{
-		prev = guess;
-		guess = (guess + x / guess) / 2.0;
-		if (guess == prev)
-			break;
-	}
-	return guess;
-}
+#include "../includes/utils.h"
 
 void printUsage(char *progName)
 {
@@ -147,80 +128,35 @@ printPingSummary(tPingContext *ctx)
 	if (!ctx)
 		return;
 
-	printf("\n--- Ping statistics ---\n");
-	printf("%u packets transmitted, %u received, %.2f%% packet loss\n",
-		   ctx->stats.sent,
-		   ctx->stats.received,
-		   ctx->stats.sent > 0 ? ((ctx->stats.sent - ctx->stats.received) * 100.0 / ctx->stats.sent) : 0.0);
+#if defined(HAJ)
+	printf("\n--- %s " PROG_NAME " statistics ---\n", ctx->targetHost);
+#else
+	printf("--- %s " PROG_NAME " statistics ---\n", ctx->targetHost);
+#endif
+	printf("%u packets transmitted, %u received, %.0f%% packet loss",
+			ctx->stats.sent,
+			ctx->stats.received,
+			ctx->stats.sent > 0 ? ((ctx->stats.sent - ctx->stats.received) * 100.0 / ctx->stats.sent) : 0.0);
 
-	if (ctx->stats.received > 0)
+	/* Calculate average RTT and standard deviation */
+	if (ctx->stats.received > 0 && (ctx->opts.packetSize == 0 || ctx->opts.packetSize >= (int)sizeof(struct timeval))) /* if the size is smaller than 16 octets we can't fit a timestamp so no rtt srry :/ */
 	{
 		double rttAvg = ctx->stats.rttSum / ctx->stats.received;
-		double rttMdev = 0.0;
+		double rttSddev = 0.0;	/* Average deviation of packet relative to mean RTT */
 		if (ctx->stats.received > 1)
 		{
+			/**
+			 * stdev: σ = sqrt(σ²); = n ​∑(xi​−μ)²; (μ = average RTT; xi = each RTT)
+			 * ctx->stats.rttSumSq = ∑(xi²)
+			 * variance = sqrt( (∑(xi²)/n) - (μ²) )
+			 */
 			double variance = (ctx->stats.rttSumSq / ctx->stats.received) - (rttAvg * rttAvg);
-			rttMdev = ft_sqrt(variance);
+			rttSddev = ftSqrtNewton(variance);
 		}
-		printf("rtt min/avg/max/mdev = %.2f/%.2f/%.2f/%.2f ms\n",
-			   ctx->stats.rttMin,
-			   rttAvg,
-			   ctx->stats.rttMax,
-			   rttMdev);
+		printf("\nround-trip min/avg/max/stdev = %.3f/%.3f/%.3f/%.3f ms",
+				ctx->stats.rttMin,
+				rttAvg,
+				ctx->stats.rttMax,
+				rttSddev);
 	}
-}
-
-void printIcmpHeader(const unsigned char *buf, int len, int isIPv4)
-{
-	if (!buf || len < 8)
-	{
-		printf("Invalid buffer\n");
-		return;
-	}
-
-	int offset = 0;
-	int ttl = -1;
-
-	if (isIPv4)
-	{
-		struct iphdr
-		{
-			unsigned char ihl:4;
-			unsigned char version:4;
-			unsigned char tos;
-			unsigned short tot_len;
-			unsigned short id;
-			unsigned short frag_off;
-			unsigned char ttl;
-			unsigned char protocol;
-			unsigned short check;
-			unsigned int saddr;
-			unsigned int daddr;
-		} *ip = (void *)buf;
-
-		offset = ip->ihl * 4;
-		ttl = ip->ttl;
-	}
-
-	// ICMP header
-	struct icmpHeader
-	{
-		unsigned char type;
-		unsigned char code;
-		unsigned short checksum;
-		unsigned short id;
-		unsigned short seq;
-	} *icmp = (void *)(buf + offset);
-
-	printf("+---------------------+---------------------+\n");
-	printf("| Field               | Value               |\n");
-	printf("+---------------------+---------------------+\n");
-	printf("| Type                | %u                  |\n", icmp->type);
-	printf("| Code                | %u                  |\n", icmp->code);
-	printf("| Checksum            | 0x%04x             |\n", ntohs(icmp->checksum));
-	printf("| Identifier (id)     | %u                  |\n", ntohs(icmp->id));
-	printf("| Sequence number     | %u                  |\n", ntohs(icmp->seq));
-	if (ttl >= 0)
-		printf("| TTL                 | %d                  |\n", ttl);
-	printf("+---------------------+---------------------+\n");
 }

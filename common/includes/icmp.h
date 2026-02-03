@@ -2,8 +2,12 @@
 #define HAJ_ICMP_H
 
 #include "stdint.h"
+#include <bits/types/struct_timeval.h>
 
 /* ----------------- ICMPv4 Definitions ----------------- */
+
+#define ICMP_TIMESTAMP_SIZE 8
+#define ICMP4_HDR_LEN 8
 
 /**
  * @brief ICMPv4 Message Types
@@ -286,6 +290,41 @@ typedef struct sIcmp6RouterAdvert
  */
 uint16_t icmpChecksum(const void *data, uint32_t len);
 
+/**
+ * @brief Build ICMPv4 Echo Request packet
+ * @param req - pointer to ICMPv4 Echo structure to fill
+ * @param bufferSize - size of the buffer pointed to by req
+ * @param id - Identifier
+ * @param seq - Sequence Number
+ * @param payload - pointer to payload data
+ * @param payloadLen - length of payload data in bytes
+ * @return total length of the ICMPv4 Echo Request packet, or 0 on error
+ */
+uint32_t buildIcmpv4EchoRequest(
+	tIcmp4Echo	*req,
+	uint32_t	bufferSize,
+	uint16_t	id,
+	uint16_t	seq,
+	const void	*payload,
+	uint32_t	payloadLen);
+
+/**
+ * @brief Parse ICMPv4 header from raw data
+ * @param data - pointer to raw data
+ * @param len - length of the data in bytes
+ * @return pointer to ICMPv4 header structure, or NULL on error
+ */
+const tIcmp4Hdr *icmp4ParseHeader(const void *data, uint32_t len);
+
+/**
+ * @brief Parse ICMPv4 Echo message from raw data
+ * @param data - pointer to raw data
+ * @param len - length of the data in bytes
+ * @return pointer to ICMPv4 Echo structure, or NULL on error
+ */
+const tIcmp4Echo *icmp4ParseEcho(const void *data, uint32_t len);
+
+/* ----------------- ICMP Print Functions ----------------- */
 
 /**
  * @brief Print ICMPv4 header

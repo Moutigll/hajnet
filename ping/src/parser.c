@@ -1,12 +1,9 @@
 #include <limits.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "../../common/includes/getopt.h"
-
-#include "../includes/ft_ping.h"
 #include "../includes/parser.h"
 #include "../includes/usage.h"
 #include "../includes/utils.h"
@@ -159,6 +156,7 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 	int			ret;
 
 	memset(result, 0, sizeof(*result));
+	result->options.packetSize = 56;
 
 #if defined(HAJ)
 	const char *shortOpts = "t:c:di:nrT:vw:W:fl:p:qRs:hV46";

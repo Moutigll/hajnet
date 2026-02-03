@@ -1,4 +1,6 @@
 #include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -64,9 +66,10 @@ pingSocketCreate(tPingSocket *ctx)
 
 	if (!ctx)
 		return (-1);
-	type = SOCK_RAW;
-	if (ctx->privilege == SOCKET_PRIV_USER)
-		type = SOCK_DGRAM;
+
+	type = SOCK_DGRAM;
+	if (ctx->privilege == SOCKET_PRIV_RAW)
+		type = SOCK_RAW;
 	ctx->fd = socket(ctx->family, type, ctx->protocol);
 	if (ctx->fd < 0)
 		return (-1);
@@ -107,18 +110,67 @@ socketApplyCommonOptions(
 	return (0);
 }
 
-int
-socketApplyIpv4Options(
-	tPingSocket			*ctx,
-	const tPingOptions	*opts)
+static void fatalError(const char *msg)
 {
+	fprintf(stderr, "Fatal error: %s\n", msg);
+	exit(EXIT_FAILURE);
+}
+	
+int
+socketApplyOptions(tPingSocket *ctx, const tPingOptions *opts)
+{
+	int	one;
+	int	ret;
+
 	if (!ctx || !opts)
 		return (-1);
-	if (opts->ttl > 0)
-		setsockopt(ctx->fd, IPPROTO_IP, IP_TTL,
-			&opts->ttl, sizeof(opts->ttl));
-	if (opts->tos >= 0)
-		setsockopt(ctx->fd, IPPROTO_IP, IP_TOS,
-			&opts->tos, sizeof(opts->tos));
+
+	one = 1;
+	if (ctx->family == AF_INET)
+	{
+		/* activer réception du TTL (flag = 1) */
+		ret = setsockopt(ctx->fd, IPPROTO_IP, IP_RECVTTL, &one, sizeof(one));
+		if (ret < 0)
+			fatalError("setsockopt IP_RECVTTL");
+
+		/* si user a demandé TTL d'envoi */
+		if (opts->ttl)
+		{
+			ret = setsockopt(ctx->fd, IPPROTO_IP, IP_TTL,
+				&opts->ttl, sizeof(opts->ttl));
+			if (ret < 0)
+				fatalError("setsockopt IP_TTL");
+		}
+		if (opts->tos)
+		{
+			ret = setsockopt(ctx->fd, IPPROTO_IP, IP_TOS,
+				&opts->tos, sizeof(opts->tos));
+			if (ret < 0)
+				fatalError("setsockopt IP_TOS");
+		}
+	}
+	else if (ctx->family == AF_INET6)
+	{
+		/* activer réception du hoplimit */
+		ret = setsockopt(ctx->fd, IPPROTO_IPV6, IPV6_RECVHOPLIMIT,
+			&one, sizeof(one));
+		if (ret < 0)
+			fatalError("setsockopt IPV6_RECVHOPLIMIT");
+
+		if (opts->ttl)
+		{
+			ret = setsockopt(ctx->fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS,
+				&opts->ttl, sizeof(opts->ttl));
+			if (ret < 0)
+				fatalError("setsockopt IPV6_UNICAST_HOPS");
+		}
+		if (opts->tos)
+		{
+			ret = setsockopt(ctx->fd, IPPROTO_IPV6, IPV6_TCLASS,
+				&opts->tos, sizeof(opts->tos));
+			if (ret < 0)
+				fatalError("setsockopt IPV6_TCLASS");
+		}
+	}
 	return (0);
 }

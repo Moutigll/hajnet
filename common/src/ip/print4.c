@@ -27,11 +27,11 @@ ipProtoToStr(tIpProtocol proto)
 {
 	switch (proto)
 	{
-		case IPPROTO_ICMP: return "ICMP";
-		case IPPROTO_TCP:  return "TCP";
-		case IPPROTO_UDP:  return "UDP";
-		case IPPROTO_IPV6: return "IPv6";
-		case IPPROTO_ICMPV6: return "ICMPv6";
+		case IP_PROTO_ICMP: return "ICMP";
+		case IP_PROTO_TCP:  return "TCP";
+		case IP_PROTO_UDP:  return "UDP";
+		case IP_PROTO_IPV6: return "IPv6";
+		case IP_PROTO_ICMPV6: return "ICMPv6";
 		default:           return "UNKNOWN";
 	}
 }
@@ -95,16 +95,16 @@ void printIpv4Header(const tIpHdr *hdr)
 		hdr->version,
 		hdr->ihl,
 		dscp, ecn,
-		ntohs(hdr->tot_len));
+		ipNtohs(hdr->tot_len));
 	printf("          ├───────────┴───────────┴────────────────┴──────┼────────┬──────────────────────────────────────┤\n");
 	printf("          │                Identification                 │  Flags │           Fragment Offset            │\n");
 	printf("  4 -  32 ├───────────────────────────────────────────────┼────────┼──────────────────────────────────────┤\n");
 	printf("          │    dec: %-5u    hex: 0x%04X  ascii: [%-4s]   │%s│              %-5u                   │\n",
-		ntohs(hdr->id),
-		ntohs(hdr->id),
+		ipNtohs(hdr->id),
+		ipNtohs(hdr->id),
 		(char *)&hdr->id,
 		ipV4FlagToStr(hdr->fragOff.raw & 0xF000),
-		ntohs(hdr->fragOff.raw & 0x1FFF));
+		ipNtohs(hdr->fragOff.raw & 0x1FFF));
 	printf("          ├───────────────────────┬───────────────────────┼────────┴──────────────────────────────────────┤\n");
 	printf("          │         TTL           │      Protocol         │                  Header Checksum              │\n");
 	printf("  8 -  64 ├───────────────────────┼───────────────────────┼───────────────────────────────────────────────┤\n");
@@ -112,17 +112,17 @@ void printIpv4Header(const tIpHdr *hdr)
 		hdr->ttl,
 		hdr->protocol,
 		ipProtoToStr(hdr->protocol),
-		ntohs(hdr->check));
+		ipNtohs(hdr->check));
 	printf("          ├───────────────────────┴───────────────────────┴───────────────────────────────────────────────┤\n");
 	printf("          │                                        Source Address                                         │\n");
 	printf(" 12 -  96 ├───────────────────────────────────────────────────────────────────────────────────────────────┤\n");
 	printf("          │                                    %15s                                            │\n",
-		ipV4ToStr(ntohl(hdr->saddr)));
+		ipV4ToStr(ipNtohl(hdr->saddr)));
 	printf("          ├───────────────────────────────────────────────────────────────────────────────────────────────┤\n");
 	printf("          │                                     Destination Address                                       │\n");
 	printf(" 16 - 128 ├───────────────────────────────────────────────────────────────────────────────────────────────┤\n");
 	printf("          │                                    %15s                                            │\n",
-		ipV4ToStr(ntohl(hdr->daddr)));
+		ipV4ToStr(ipNtohl(hdr->daddr)));
 	printf("          └───────────────────────────────────────────────────────────────────────────────────────────────┘\n");
 	printIp4Options(hdr);
 }

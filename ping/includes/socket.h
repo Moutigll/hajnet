@@ -105,7 +105,7 @@ void				pingSocketClose(tPingSocket *ctx);
 int					socketApplyCommonOptions(tPingSocket *ctx, const tPingOptions *opts);
 
 /**
- * @brief Apply IPv4-specific socket options
+ * @brief Apply socket options specific to ping
  * - IP_TTL
  * - IP_TOS
  * - IP_OPTIONS (record route, timestamp)
@@ -113,6 +113,6 @@ int					socketApplyCommonOptions(tPingSocket *ctx, const tPingOptions *opts);
  * @param opts - parsed ping options
  * @return 0 on success, -1 on error
  */
-int					socketApplyIpv4Options(tPingSocket *ctx, const tPingOptions *opts);
+int					socketApplyOptions(tPingSocket *ctx, const tPingOptions *opts);
 
 #endif

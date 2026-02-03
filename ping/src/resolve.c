@@ -1,8 +1,7 @@
 #include <netdb.h>
 #include <string.h>
-#include <unistd.h>
 
-#include "../includes/ft_ping.h"
+#include "../includes/ping.h"
 #include "../includes/resolve.h"
 
 /**

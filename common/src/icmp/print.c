@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../../includes/stddef.h"	/* IWYU pragma: keep */
 #include "../../includes/ip.h"
 #include "../../includes/icmp.h"
 
@@ -95,8 +94,8 @@ printIcmp4Echo(const tIcmp4Echo *echo, size_t dataLen)
 	printf("          │                  Identifier                   │                  Sequence                   │\n");
 	printf("  4 -  32 ├───────────────────────────────────────────────┼─────────────────────────────────────────────┤\n");
 	printf("          │	              0x%04X                      │                   0x%04X                    │\n",
-		ntohs(echo->id),
-		ntohs(echo->sequence));
+		ipNtohs(echo->id),
+		ipNtohs(echo->sequence));
 	printf("          ├───────────────────────────────────────────────┴─────────────────────────────────────────────┤\n");
 	printf("          │                                              Data                                           │\n");
 	printf("  8 -  64 ├─────────────────────────────────────────────────────────────────────────────────────────────┤\n");
@@ -111,7 +110,7 @@ printIcmp4Error(const tIcmp4Error *err)
 	printf("          │                       Unused                  │                     Original IP             │\n");
 	printf("  4 -  32 ├───────────────────────────────────────────────┼─────────────────────────────────────────────┤\n");
 	printf("          │                       0x%08X              │                                             │\n",
-		ntohl(err->unused));
+		ipNtohl(err->unused));
 	printf("          ├───────────────────────────────────────────────┴─────────────────────────────────────────────┤\n");
 	printf("          │                                        Original IP Data                                     │\n");
 	printf("  8 -  64 ├─────────────────────────────────────────────────────────────────────────────────────────────┤\n");
@@ -150,7 +149,7 @@ printIcmp4Header(const tIcmp4Hdr *hdr)
 	printf("          │ %-3u %-13s     │ %-3u %-15s   │                   0x%04X                    │\n",
 		hdr->type, typeText,
 		hdr->code, codeText,
-		ntohs(hdr->checksum));
+		ipNtohs(hdr->checksum));
 }
 
 /* -------------------- Dispatcher -------------------- */

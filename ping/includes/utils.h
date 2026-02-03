@@ -14,7 +14,7 @@
  * @param progName - program name (for error messages)
  * @return converted numeric value
  */
-size_t convertNumberOption(const char *optArg, size_t maxVal, int allowZero, const char *progName);
+size_t		convertNumberOption(const char *optArg, size_t maxVal, int allowZero, const char *progName);
 
 /**
  * @brief Decode a hex pattern string into bytes
@@ -24,7 +24,7 @@ size_t convertNumberOption(const char *optArg, size_t maxVal, int allowZero, con
  * @param patternLen - output length of the decoded pattern
  * @param patternData - output buffer for decoded bytes
  */
-void decodePattern(
+void		decodePattern(
 	const char		*progName,
 	const char		*text,
 	int				maxLen,
@@ -35,20 +35,49 @@ void decodePattern(
  * @brief Check if the current user is root
  * @return 1 if root, 0 otherwise
  */
-tBool isRoot(void);
+tBool		isRoot(void);
 
 /**
  * @brief Convert protocol number to string
  * @param proto - protocol number
  * @return string representation of the protocol
  */
-const char *protoToStr(int proto);
+const char	*protoToStr(int proto);
 
 /**
  * @brief Convert socket type to string
  * @param type - ping socket type
  * @return string representation of the socket type
  */
-const char *sockTypeToStr(tPingSocketType type);
+const char	*sockTypeToStr(tPingSocketType type);
+
+/**
+ * @brief Compute square root using Newton's method
+ * @param x - input value
+ * @return square root of x, or -1 on error
+ */
+double		ftSqrtNewton(double x);
+
+/**
+ * @brief Clamp an integer value between min and max
+ * @param val - value to clamp
+ * @param min - minimum value
+ * @param max - maximum value
+ * @return clamped value
+ */
+int			clampInt(int val, int min, int max);
+
+/**
+ * @brief Truncate a string to max_len and mark with '.' if truncated
+ * @param dest - destination buffer
+ * @param dest_size - size of destination buffer
+ * @param src - source string
+ * @param max_len - maximum length to copy from source
+ */
+void		truncateAndMark(
+	char		*dest,
+	size_t		dest_size,
+	const char	*src,
+	size_t		max_len);
 
 #endif

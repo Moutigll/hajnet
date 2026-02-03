@@ -1,264 +1,523 @@
-#include <arpa/inet.h>
+
 #include <errno.h>
 #include <fcntl.h>
-#include <netinet/ip_icmp.h>
+#include <netinet/in.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-#include "../includes/ft_ping.h"
+
+#include "../includes/ping.h"
+#include "../includes/pingUtils.h"
 #include "../includes/usage.h"
 
-/* Global flag to indicate user interrupted (Ctrl+C) */
+
+/* global flag set on SIGINT */
 volatile sig_atomic_t g_pingInterrupted = 0;
 
-/* Signal handler for SIGINT (Ctrl+C) */
-static void handleSigInt(int sig)
+/* SIGINT handler */
+static void
+handleSigInt(int sig)
 {
 	(void)sig;
 	g_pingInterrupted = 1;
 }
 
-/* Compute ICMP checksum */
-static unsigned short icmpChecksum(const void *buf, int len)
+/**
+ * @brief Send one ICMP Echo Request packet
+ * @param ctx - ping context
+ * @return 0 on success, -1 on failure
+ */
+static int
+sendIcmpPacket(tPingContext *ctx)
 {
-	unsigned int sum = 0;
-	const unsigned short *data = buf;
+	unsigned char	packet[PING_MAX_PACKET_SIZE];
+	unsigned char	payload[PING_MAX_PACKET_SIZE];
+	struct timeval	tv;
+	uint32_t		userPayload;
+	uint32_t		payloadLen;
+	uint32_t		packetLen;
+	ssize_t			sent;
 
-	while (len > 1)
-	{
-		sum += *data++;
-		len -= 2;
-	}
-	if (len == 1)
-		sum += *(unsigned char *)data;
-
-	sum = (sum >> 16) + (sum & 0xFFFF);
-	sum += (sum >> 16);
-
-	return (unsigned short)(~sum);
-}
-
-/* Build an ICMP Echo Request packet with embedded timestamp */
-static int buildIcmpPacket(tPingContext *ctx, unsigned char *buf, int *len)
-{
-	if (!ctx || !buf || !len)
-		return -1;
-
-	memset(buf, 0, PING_MAX_PACKET_SIZE);
-
-	struct icmphdr *hdr = (struct icmphdr *)buf;
-	hdr->type = ICMP_ECHO;
-	hdr->code = 0;
-	hdr->un.echo.id = htons(getpid() & 0xFFFF);
-	hdr->un.echo.sequence = htons(ctx->seq);
-
-	/* Store current time in packet data to compute RTT later */
-	struct timeval *tv = (struct timeval *)(buf + ICMP_DATA_OFFSET);
-	gettimeofday(tv, NULL);
-
-	*len = ICMP_DATA_OFFSET + sizeof(struct timeval);
-
-	hdr->checksum = 0;
-	hdr->checksum = icmpChecksum(buf, *len);
-
-	return 0;
-}
-
-/* Send one ICMP packet and optionally print header if verbose */
-static int sendIcmpPacket(tPingContext *ctx)
-{
 	if (!ctx)
-		return -1;
+		return (-1);
 
-	unsigned char buf[PING_MAX_PACKET_SIZE];
-	int len;
+	/* compute user payload and bound it */
+	userPayload = computeUserPayloadSize(&ctx->opts);
+	if (userPayload > (PING_MAX_PACKET_SIZE - sizeof(tIcmp4Hdr) - 4))
+		userPayload = PING_MAX_PACKET_SIZE - sizeof(tIcmp4Hdr) - 4;
 
-	if (buildIcmpPacket(ctx, buf, &len) < 0)
-		return -1;
+	payloadLen = userPayload;
 
-	ssize_t sent = sendto(ctx->sock.fd, buf, len, 0,
-						  (struct sockaddr *)&ctx->targetAddr, ctx->addrLen);
-	if (sent != len)
-		return -1;
+	/* prepare payload: zero and, if possible, copy timeval at start */
+	if (payloadLen > 0)
+		memset(payload, 0, payloadLen);
+	if (payloadLen >= (uint32_t)sizeof(tv))
+	{
+		gettimeofday(&tv, NULL);
+		memcpy(payload, &tv, sizeof(tv));
+	}
+
+	packetLen = buildIcmpv4EchoRequest(
+		(tIcmp4Echo *)packet,
+		sizeof(packet),
+		(uint16_t)ctx->pid,
+		(uint16_t)ctx->seq,
+		(payloadLen ? payload : NULL),
+		payloadLen
+	);
+	if (packetLen == 0)
+		return (-1);
+
+	/* send (works for RAW and DGRAM when target provided) */
+	sent = sendto(ctx->sock.fd,
+					packet,
+					packetLen,
+					0,
+					(struct sockaddr *)&ctx->targetAddr,
+					ctx->addrLen);
+	if (sent < 0)
+	{
+		if (ctx->opts.verbose > 1)
+			fprintf(stderr, "sendto failed: %s (%d)\n", strerror(errno), errno);
+		return (-1);
+	}
+
+	if (ctx->opts.verbose > 2)
+		printf("Sent ICMP Echo Request: seq=%u bytes=%zd\n", ctx->seq, sent);
 
 	ctx->stats.sent++;
-
-	/* Verbose logging */
-	if (ctx->opts.options.verbose > 2)
-		printf("Sent %zd bytes\n", sent);
-	if (ctx->opts.options.verbose > 3)
-	{
-		printf("================================================================\n");
-		printf("SENDING REQ [%d]\n", ctx->seq);
-		printIcmpHeader(buf, len, ctx->targetAddr.ss_family == AF_INET);
-	}
-
-	return 0;
+	return (0);
 }
 
-/* Receive one ICMP reply and compute RTT using timestamp */
-static int receiveIcmpReply(tPingContext *ctx, unsigned char *buf, int bufLen, double *rtt)
+/**
+ * @brief Receive ICMP packet on a DGRAM socket.
+ * @param ctx - ping context
+ * @param buf - buffer to receive packet
+ * @param bufLen - length of buffer
+ * @param from - source address output
+ * @param icmp - ICMP packet output
+ * @param icmpLen - ICMP packet length output
+ * @param ttl - TTL output
+ * @return 0 on success, -1 on failure
+ */
+static int
+recvIcmpDgram(
+	tPingContext			*ctx,
+	void					*buf,
+	size_t					bufLen,
+	struct sockaddr_storage	*from,
+	const unsigned char		**icmp,
+	size_t					*icmpLen,
+	uint8_t					*ttl)
 {
-	if (!ctx || !buf || bufLen <= 0)
-		return -1;
+	ssize_t				n;
+	socklen_t			fromLen = sizeof(*from);
+	struct iovec		iov;
+	struct msghdr		msg;
+	char				cmsgbuf[CMSG_SPACE(sizeof(int))];
+	int					recvTtl = 0;
 
-	socklen_t addrLen = ctx->addrLen;
-	ssize_t n = recvfrom(ctx->sock.fd, buf, bufLen, 0,
-						 (struct sockaddr *)&ctx->targetAddr, &addrLen);
-	if (n < 0)
+	if (!ctx || !buf || !from || !icmp || !icmpLen || !ttl)
+		return (-1);
+
+	iov.iov_base = buf;
+	iov.iov_len = bufLen;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name		= from;		/* source address */
+	msg.msg_namelen		= fromLen;	/* length of source address */
+	msg.msg_iov			= &iov;		/* scatter/gather array */
+	msg.msg_iovlen		= 1;		/* number of elements in iov */
+	msg.msg_control		= cmsgbuf;	/* ancillary data buffer */
+	msg.msg_controllen	= sizeof(cmsgbuf);
+
+	n = recvmsg(ctx->sock.fd, &msg, 0);
+	if (n <= 0)
+		return (-1);
+
+	/* parse ancillary: IPv4 TTL or IPv6 HOPLIMIT if present */
+	for (struct cmsghdr *c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c))
 	{
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return -1;
-		return -1;
+		if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TTL)
+		{
+			if (c->cmsg_len >= CMSG_LEN(sizeof(int)))
+				memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
+			break;
+		}
+#if defined(IPPROTO_IPV6) && defined(IPV6_HOPLIMIT)
+		if (c->cmsg_level == IPPROTO_IPV6 && c->cmsg_type == IPV6_HOPLIMIT)
+		{
+			if (c->cmsg_len >= CMSG_LEN(sizeof(int)))
+				memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
+			break;
+		}
+#endif
 	}
 
-	ctx->stats.received++;
-	ctx->stats.lost = ctx->stats.sent - ctx->stats.received;
-
-	/* Compute RTT using timestamp in packet */
-	if ((unsigned long)n >= ICMP_DATA_OFFSET + sizeof(struct timeval))
-	{
-		struct timeval *tvSent = (struct timeval *)(buf + ICMP_DATA_OFFSET);
-		struct timeval tvNow;
-		gettimeofday(&tvNow, NULL);
-
-		double ms = (tvNow.tv_sec - tvSent->tv_sec) * 1000.0 +
-					(tvNow.tv_usec - tvSent->tv_usec) / 1000.0;
-		if (rtt)
-			*rtt = ms;
-
-		if (ctx->stats.rttMin == 0 || ms < ctx->stats.rttMin)
-			ctx->stats.rttMin = ms;
-		if (ms > ctx->stats.rttMax)
-			ctx->stats.rttMax = ms;
-		ctx->stats.rttSum += ms;
-		ctx->stats.rttSumSq += ms * ms;
-	}
-	else if (rtt)
-		*rtt = 0.0;
-
-	return 0;
+	*icmp		= (const unsigned char *)buf;
+	*icmpLen	= (size_t)n;
+	*ttl		= (uint8_t)recvTtl;
+	return (0);
 }
 
-/* Print one ICMP reply to stdout */
-static void printIcmpReply(tPingContext *ctx, double rtt)
+/**
+ * @brief Receive ICMP packet on a RAW socket.
+ * Parse IP header to locate ICMP payload.
+ * @param ctx - ping context
+ * @param buf - buffer to receive packet
+ * @param bufLen - length of buffer
+ * @param from - source address output
+ * @param icmp - ICMP packet output
+ * @param icmpLen - ICMP packet length output
+ * @param ttl - TTL output
+ * @param ipHdrOut - parsed IP header output
+ * @return 0 on success, -1 on failure
+ */
+static int
+recvIcmpRaw(tPingContext *ctx,
+			void					*buf,
+			size_t					bufLen,
+			struct sockaddr_storage	*from,
+			const unsigned char		**icmp,
+			size_t					*icmpLen,
+			uint8_t					*ttl,
+			const tIpHdr			**ipHdrOut)
 {
-	char *ipStr;
+	ssize_t			n;
+	socklen_t		fromLen = sizeof(*from);
+	int				recvTtl = 0;
+	struct iovec	iov;
+	struct msghdr	msg;
+	char			cmsgbuf[CMSG_SPACE(sizeof(int))];
 
-	if (ctx->targetAddr.ss_family == AF_INET)
+	if (!ctx || !buf || !from || !icmp || !icmpLen || !ttl || !ipHdrOut)
+		return (-1);
+
+	iov.iov_base = buf;
+	iov.iov_len = bufLen;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = from;
+	msg.msg_namelen = fromLen;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+
+	n = recvmsg(ctx->sock.fd, &msg, 0);
+	if (n <= 0)
+		return (-1);
+
+	/* Retrieve TTL from ancillary control data */
+	for (struct cmsghdr *c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c))
 	{
-		ipStr = inet_ntoa(((struct sockaddr_in *)&ctx->targetAddr)->sin_addr);
-		printf("64 bytes from %s: icmp_seq=%u ttl=64 time=%.3f ms\n",
-			   ipStr, ctx->seq, rtt);
+		if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TTL)
+		{
+			if (c->cmsg_len >= CMSG_LEN(sizeof(int)))
+				memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
+			break;
+		}
+	}
+
+	/* Parse IP header from received buffer */
+	static tIpHdr ipHdr;
+	size_t ipHeaderLen = parseIpHeaderFromBuffer(buf, (size_t)n, &ipHdr);
+	if (ipHeaderLen == 0)
+		return (-1);
+
+	*ipHdrOut = &ipHdr;
+	*icmp = (const unsigned char *)buf + ipHeaderLen;
+	*icmpLen = n - ipHeaderLen;
+	*ttl = (uint8_t)recvTtl;
+
+	return (0);
+}
+
+/**
+ * @brief Validate received ICMP reply
+ * @param ctx - ping context
+ * @param icmp - ICMP packet
+ * @param icmpLen - length of ICMP packet
+ * @param from - source address
+ * @param seqOut - output sequence number
+ * @return 0 on success, -1 on failure
+ */
+static int
+validateIcmpReply(
+	tPingContext					*ctx,
+	const unsigned char				*icmp,
+	size_t							icmpLen,
+	const struct sockaddr_storage	*from,
+	uint16_t						*seqOut)
+{
+	uint16_t idNet, seqNet;
+
+
+	if (!ctx || !icmp || !from || !seqOut)
+		return (-1);
+
+	if (icmpLen < ICMP4_HDR_LEN)
+		return (-1);
+
+	/* only consider Echo Reply */
+	if (icmp[0] != ICMP4_ECHO_REPLY)
+		return (-1);
+
+	/* id/seq are at offsets 4 and 6 (network order) */
+	memcpy(&idNet, icmp + 4, sizeof(idNet));
+	memcpy(&seqNet, icmp + 6, sizeof(seqNet));
+
+	*seqOut = ntohs(seqNet);
+
+	/* DGRAM: kernel may rewrite id; ensure reply comes from the target address */
+	if (ctx->targetAddr.ss_family == AF_INET && from->ss_family == AF_INET)
+	{
+		const struct sockaddr_in *sfrom = (const struct sockaddr_in *)from;
+		const struct sockaddr_in *starget = (const struct sockaddr_in *)&ctx->targetAddr;
+		if (sfrom->sin_addr.s_addr != starget->sin_addr.s_addr)
+			return (-1);
+	}
+#if defined(AF_INET6)
+	else if (ctx->targetAddr.ss_family == AF_INET6 && from->ss_family == AF_INET6)
+	{
+		const struct sockaddr_in6 *sfrom6 = (const struct sockaddr_in6 *)from;
+		const struct sockaddr_in6 *starget6 = (const struct sockaddr_in6 *)&ctx->targetAddr;
+		if (memcmp(&sfrom6->sin6_addr, &starget6->sin6_addr, sizeof(sfrom6->sin6_addr)) != 0)
+			return (-1);
+	}
+#endif
+	
+
+	return (0);
+}
+
+/**
+ * @brief Compute ICMP RTT from received packet
+ * @param ctx - ping context
+ * @param icmp - ICMP packet
+ * @param icmpLen - length of ICMP packet
+ * @param rtt - output RTT
+ */
+static void
+computeIcmpRtt(
+	tPingContext		*ctx,
+	const unsigned char	*icmp,
+	size_t				icmpLen,
+	struct timeval		*rtt)
+{
+	struct timeval sentTv;
+	struct timeval now;
+	size_t offset;
+	uint32_t userPayload;
+
+	if (!ctx || !icmp || !rtt)
+		return;
+
+	userPayload = computeUserPayloadSize(&ctx->opts);
+	offset = ICMP4_HDR_LEN; /* payload starts after 8-byte ICMP header */
+
+	memset(rtt, 0, sizeof(*rtt));
+	if (userPayload < sizeof(sentTv))
+		return;
+	if (icmpLen < offset + sizeof(sentTv))
+		return;
+
+	memcpy(&sentTv, icmp + offset, sizeof(sentTv));
+	gettimeofday(&now, NULL);
+	timersub(&now, &sentTv, rtt);
+}
+
+/*
+ * Top-level receive: choose RAW vs DGRAM helpers, validate, compute rtt.
+ * - fills info->type, info->code, info->seq, info->ttl, info->rtt
+ */
+static int
+receiveIcmpReply(
+	tPingContext	*ctx,
+	void			*buf,
+	size_t			bufLen,
+	tIcmpReplyInfo	*info)
+{
+	struct sockaddr_storage	from;
+	const unsigned char		*icmp;
+	size_t					icmpLen;
+	const tIpHdr			*ipHdr = NULL;
+
+	if (!ctx || !buf || !info)
+		return (-1);
+
+	if (ctx->sock.privilege == SOCKET_PRIV_RAW)
+	{
+		if (recvIcmpRaw(ctx, buf, bufLen, &from, &icmp, &icmpLen, &info->ttl, &ipHdr) != 0)
+			return (-1);
 	}
 	else
 	{
-		printf("64 bytes from (ipv6): icmp_seq=%u time=%.3f ms\n",
-			   ctx->seq, rtt);
+		if (recvIcmpDgram(ctx, buf, bufLen, &from, &icmp, &icmpLen, &info->ttl) != 0)
+			return (-1);
 	}
+
+	/* validate and extract seq (also filters unrelated replies) */
+	if (validateIcmpReply(ctx, icmp, icmpLen, &from, &info->seq) != 0)
+		return (-1);
+
+	info->type = icmp[0];
+	info->code = icmp[1];
+
+	/* compute RTT if available */
+	computeIcmpRtt(ctx, icmp, icmpLen, &info->rtt);
+
+	/* verbose: if RAW, also print parsed IP header */
+	if (ctx->opts.verbose > 4 && ipHdr)
+	{
+		printf("Received IPv4 Header:\n");
+		printIpv4Header(ipHdr);
+	}
+
+	if (ctx->opts.verbose > 3)
+	{
+		printf("ICMP reply: seq=%u ttl=%u\n", info->seq, info->ttl);
+		printIcmp4Packet(icmp, (uint32_t)icmpLen);
+	}
+
+	ctx->stats.received++;
+	return (0);
 }
 
-/* Convert double seconds to timeval */
-static void timevalFromDouble(struct timeval *tv, double seconds)
+/* keep your pingLoopInit - it's already fine; ensure it calls timevalFromDouble etc. */
+static void
+pingLoopInit(
+	tPingContext	*ctx,
+	struct timeval	*lastSend,
+	struct timeval	*interval,
+	uint32_t		*userPayload,
+	uint32_t		*onWireHeader)
 {
-	tv->tv_sec = (time_t)seconds;
-	tv->tv_usec = (suseconds_t)((seconds - (double)tv->tv_sec) * 1e6);
+	if (!ctx || !lastSend || !interval || !userPayload || !onWireHeader)
+		return;
+
+	*userPayload = computeUserPayloadSize(&ctx->opts);
+	*onWireHeader = ICMP4_HDR_LEN; /* ICMP header on-wire (8) - printing will add user payload */
+
+	printf("PING %s (%s): %u data bytes\n",
+		ctx->targetHost,
+		ctx->resolvedIp,
+		*userPayload);
+
+	fcntl(ctx->sock.fd, F_SETFL, O_NONBLOCK);
+	signal(SIGINT, handleSigInt);
+
+	double iv = ctx->opts.interval;
+	if (iv <= 0.0)
+		iv = PING_DEFAULT_INTERVAL;
+	timevalFromDouble(interval, iv);
+	normalizeTimeval(interval);
+
+	gettimeofday(lastSend, NULL);
+
+	ctx->seq = 0;
+	ctx->stats.sent = 0;
+	ctx->stats.received = 0;
+	ctx->stats.lost = 0;
+	ctx->stats.rttMin = 0.0;
+	ctx->stats.rttMax = 0.0;
+	ctx->stats.rttSum = 0.0;
 }
 
-/* Normalize timeval structure to valid range */
-static void normalizeTimeval(struct timeval *tv)
+/* run the ping loop */
+void
+runPingLoop(tPingContext *ctx)
 {
-	while (tv->tv_usec >= 1000000)
-	{
-		tv->tv_usec -= 1000000;
-		tv->tv_sec++;
-	}
-	while (tv->tv_usec < 0)
-	{
-		tv->tv_usec += 1000000;
-		tv->tv_sec--;
-	}
-	if (tv->tv_sec < 0)
-	{
-		tv->tv_sec = 0;
-		tv->tv_usec = 0;
-	}
-}
-
-/* Main ping loop */
-void runPingLoop(tPingContext *ctx)
-{
-	fd_set fdset;
-	struct timeval respTime;
-	struct timeval lastSend, interval, now;
-	unsigned char buf[PING_MAX_PACKET_SIZE];
-	double rtt;
+	fd_set			fdset;
+	struct timeval	lastSend, interval, now, respTime;
+	unsigned char	buf[PING_MAX_PACKET_SIZE];
+	unsigned int	sentCount = 0;
+	uint32_t		userPayload;
+	uint32_t		onWireHeader;
 
 	if (!ctx)
 		return;
 
-	/* Set socket to non-blocking mode */
-	fcntl(ctx->sock.fd, F_SETFL, O_NONBLOCK);
-
-	/* Install SIGINT handler */
-	signal(SIGINT, handleSigInt);
-
-	/* Ensure interval is valid */
-	if (ctx->opts.options.interval <= 0)
-		ctx->opts.options.interval = 1.0;
-
-	timevalFromDouble(&interval, ctx->opts.options.interval);
-	normalizeTimeval(&interval);
-
-	gettimeofday(&lastSend, NULL);
-	ctx->seq = 0;
+	/* call initialization */
+	pingLoopInit(ctx, &lastSend, &interval, &userPayload, &onWireHeader);
 
 	while (!g_pingInterrupted &&
-		   (ctx->opts.options.count == 0 || ctx->seq < ctx->opts.options.count))
+		   (ctx->opts.count == 0 || sentCount < ctx->opts.count))
 	{
-		/* Send ICMP Echo Request */
-		if (sendIcmpPacket(ctx) < 0)
-			fprintf(stderr, "Failed to send ICMP packet\n");
+		/* send one packet */
+		if (sendIcmpPacket(ctx) == 0)
+			sentCount++;
 
-		/* Wait for reply with select() respecting interval */
+		/* wait for replies until next interval */
 		while (!g_pingInterrupted)
 		{
 			FD_ZERO(&fdset);
 			FD_SET(ctx->sock.fd, &fdset);
 
 			gettimeofday(&now, NULL);
-			respTime.tv_sec = lastSend.tv_sec + interval.tv_sec - now.tv_sec;
+			respTime.tv_sec  = lastSend.tv_sec  + interval.tv_sec  - now.tv_sec;
 			respTime.tv_usec = lastSend.tv_usec + interval.tv_usec - now.tv_usec;
 			normalizeTimeval(&respTime);
-			if (respTime.tv_sec < 0)
-				respTime.tv_sec = respTime.tv_usec = 0;
+			if (respTime.tv_sec < 0) { respTime.tv_sec = 0; respTime.tv_usec = 0; }
 
 			int sel = select(ctx->sock.fd + 1, &fdset, NULL, NULL, &respTime);
-			if (sel > 0)
+			if (sel < 0)
 			{
-				if (receiveIcmpReply(ctx, buf, sizeof(buf), &rtt) == 0)
-					printIcmpReply(ctx, rtt);
+				if (errno != EINTR)
+				{
+					fprintf(stderr, "select failed: %s\n", strerror(errno));
+					exit(EXIT_FAILURE);
+				}
 			}
-			else
-				break;
+			else if (sel == 0)
+				break; /* timeout, send next packet */
+			else if (FD_ISSET(ctx->sock.fd, &fdset))
+			{
+				tIcmpReplyInfo	replyInfo;
+				double			ms;
+				int				haveRtt;
+				unsigned int	replyBytes;
+
+				if (receiveIcmpReply(ctx, buf, sizeof(buf), &replyInfo) != 0)
+					continue;
+
+				haveRtt = (userPayload >= sizeof(struct timeval) &&
+						   (replyInfo.rtt.tv_sec != 0 || replyInfo.rtt.tv_usec != 0));
+
+				ms = 0.0;
+				if (haveRtt)
+				{
+					ms = replyInfo.rtt.tv_sec * 1000.0
+					   + replyInfo.rtt.tv_usec / 1000.0;
+
+					if (ctx->stats.received == 1 || ms < ctx->stats.rttMin)
+						ctx->stats.rttMin = ms;
+					if (ms > ctx->stats.rttMax)
+						ctx->stats.rttMax = ms;
+
+					ctx->stats.rttSum += ms;
+					ctx->stats.rttSumSq += ms * ms;
+				}
+
+				replyBytes = onWireHeader + userPayload;
+
+				printf("%u bytes from %s: icmp_seq=%u ttl=%u",
+					   replyBytes,
+					   ctx->resolvedIp,
+					   replyInfo.seq,
+					   replyInfo.ttl);
+
+				if (haveRtt)
+					printf(" time=%.3f ms", ms);
+
+				printf("\n");
+			}
 		}
 
-		/* Update last send timestamp and sequence */
 		gettimeofday(&lastSend, NULL);
 		ctx->seq++;
 	}
 
-	/* Print final statistics */
-	printf("\n--- ping statistics ---\n");
-	printf("%u packets transmitted, %u received, %.1f%% packet loss\n",
-		   ctx->seq, ctx->stats.received,
-		   ((ctx->seq - ctx->stats.received) * 100.0) / ctx->seq);
-
-	if (ctx->stats.received > 0)
-	{
-		double avg = ctx->stats.rttSum / ctx->stats.received;
-		printf("rtt min/avg/max = %.3f/%.3f/%.3f ms\n",
-			   ctx->stats.rttMin, avg, ctx->stats.rttMax);
-	}
+	printPingSummary(ctx);
 }
