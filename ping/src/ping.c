@@ -60,14 +60,30 @@ sendIcmpPacket(tPingContext *ctx)
 
 	if (ctx->targetAddr.ss_family == AF_INET)
 	{
-		packetLen = buildIcmpv4EchoRequest(
-			(tIcmp4Echo *)packet,
-			sizeof(packet),
-			(uint16_t)ctx->pid,
-			(uint16_t)ctx->seq,
-			(payloadLen ? payload : NULL),
-			payloadLen
-		);
+		if (ctx->opts.timestamp && ctx->sock.privilege == SOCKET_PRIV_RAW)
+		{
+			/* build ICMP Timestamp request if raw socket and timestamp option */
+			packetLen = buildIcmpv4TimestampRequest(
+				(tIcmp4Timestamp *)packet,
+				sizeof(tIcmp4Timestamp),
+				(uint16_t)ctx->pid,
+				(uint16_t)ctx->seq,
+				msSinceMidnight()
+			);
+
+		}
+		else
+		{
+			/* default Echo request */
+			packetLen = buildIcmpv4EchoRequest(
+				(tIcmp4Echo *)packet,
+				sizeof(tIcmp4Echo),
+				(uint16_t)ctx->pid,
+				(uint16_t)ctx->seq,
+				(payloadLen ? payload : NULL),
+				payloadLen
+			);
+		}
 	}
 #if defined(AF_INET6)
 	else if (ctx->targetAddr.ss_family == AF_INET6)
@@ -302,8 +318,10 @@ validateIcmpReply(
 		if (icmpLen < ICMP4_HDR_LEN)
 			return (-1);
 		/* only consider IPv4 Echo Reply */
-		if (icmp[0] != ICMP4_ECHO_REPLY)
+		if (icmp[0] != ICMP4_ECHO_REPLY &&
+			!(ctx->opts.timestamp && icmp[0] == ICMP4_TIMESTAMP_REPLY))
 			return (-1);
+
 	}
 #if defined(AF_INET6)
 	else if (ctx->targetAddr.ss_family == AF_INET6)
@@ -578,6 +596,9 @@ runPingLoop(tPingContext *ctx)
 					printf(" time=%.3f ms", ms);
 
 				printf("\n");
+				if (ctx->opts.timestamp && replyInfo.type == ICMP4_TIMESTAMP_REPLY)
+					printIcmpv4TimestampReply((const tIcmp4Echo *)buf);
+
 			}
 		}
 

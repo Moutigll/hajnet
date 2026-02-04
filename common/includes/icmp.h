@@ -159,6 +159,20 @@ typedef struct sIcmp4Error
 	uint8_t		original_ip[16];	/* Original IP header and first 8 bytes of original payload */
 } tIcmp4Error;
 
+/**
+ * @brief ICMPv4 Timestamp Request / Reply
+ */
+typedef struct sIcmp4Timestamp
+{
+	tIcmp4Hdr	hdr;			/* ICMP Header */
+	uint16_t	id;				/* Identifier */
+	uint16_t	sequence;		/* Sequence number */
+	uint32_t	originateTs;	/* Originate Timestamp (ms since midnight UTC) */
+	uint32_t	receiveTs;		/* Receive Timestamp */
+	uint32_t	transmitTs;		/* Transmit Timestamp */
+} tIcmp4Timestamp;
+
+
 /* ----------------- ICMPv6 Definitions ----------------- */
 
 /**
@@ -327,6 +341,30 @@ const tIcmp4Hdr *icmp4ParseHeader(const void *data, uint32_t len);
  * @return pointer to ICMPv4 Echo structure, or NULL on error
  */
 const tIcmp4Echo *icmp4ParseEcho(const void *data, uint32_t len);
+
+/**
+ * @brief Build ICMPv4 Timestamp Request packet
+ * @param req - pointer to ICMPv4 Timestamp structure to fill
+ * @param bufferSize - size of the buffer pointed to by req
+ * @param id - Identifier
+ * @param seq - Sequence Number
+ * @param originateTs - Originate Timestamp (ms since midnight UTC)
+ * @return total length of the ICMPv4 Timestamp Request packet, or 0 on error
+ */
+uint32_t buildIcmpv4TimestampRequest(
+	tIcmp4Timestamp	*req,
+	uint32_t		bufferSize,
+	uint16_t		id,
+	uint16_t		seq,
+	uint32_t		originateTs);
+
+/**
+ * @brief Parse ICMPv4 Timestamp message from raw data
+ * @param data - pointer to raw data
+ * @param len - length of the data in bytes
+ * @return pointer to ICMPv4 Timestamp structure, or NULL on error
+ */
+const tIcmp4Timestamp *icmp4ParseTimestamp(const void *data, uint32_t len);
 
 /* ----------------- ICMPv6 Functions ----------------- */
 

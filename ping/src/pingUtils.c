@@ -1,10 +1,8 @@
+#include <stdio.h>
+#include <time.h>
+
 #include "../includes/pingUtils.h"
 
-/**
- * @brief Convert double seconds to timeval
- * @param tv - timeval to fill
- * @param seconds - seconds as double
- */
 void
 timevalFromDouble(struct timeval *tv, double seconds)
 {
@@ -12,10 +10,6 @@ timevalFromDouble(struct timeval *tv, double seconds)
 	tv->tv_usec = (suseconds_t)((seconds - (double)tv->tv_sec) * 1e6);
 }
 
-/**
- * @brief Normalize timeval structure (adjusts tv_usec to be within valid range)
- * @param tv - timeval to normalize
- */
 void
 normalizeTimeval(struct timeval *tv)
 {
@@ -36,11 +30,6 @@ normalizeTimeval(struct timeval *tv)
 	}
 }
 
-/**
- * @brief Compute user payload size based on options
- * @param opts - ping options
- * @return user payload size in bytes
- */
 uint32_t
 computeUserPayloadSize(const tPingOptions *opts)
 {
@@ -52,4 +41,33 @@ computeUserPayloadSize(const tPingOptions *opts)
 		userPayload = (uint32_t)opts->packetSize;
 	}
 	return (userPayload);
+}
+
+uint32_t
+msSinceMidnight(void)
+{
+	struct timeval	tv;
+	struct tm		tmUtc;
+
+	gettimeofday(&tv, NULL);
+	gmtime_r(&tv.tv_sec, &tmUtc);
+	uint32_t ms = tmUtc.tm_hour * 3600000
+				+ tmUtc.tm_min * 60000
+				+ tmUtc.tm_sec * 1000
+				+ tv.tv_usec / 1000;
+	return (ms);
+}
+
+void
+printIcmpv4TimestampReply(const tIcmp4Echo *ts)
+{
+	uint32_t otime, rtime, ttime;
+	if (!ts)
+		return;
+	otime = ntohl(((uint32_t *)ts->data)[0]);
+	rtime = ntohl(((uint32_t *)ts->data)[1]);
+	ttime = ntohl(((uint32_t *)ts->data)[2]);
+	printf("icmp_otime = %u\n", otime);
+	printf("icmp_rtime = %u\n", rtime);
+	printf("icmp_ttime = %u\n", ttime);
 }

@@ -88,6 +88,50 @@ const tIcmp4Echo
 	return (echo);
 }
 
+uint32_t
+buildIcmpv4TimestampRequest(
+	tIcmp4Timestamp	*req,
+	uint32_t		bufferSize,
+	uint16_t		id,
+	uint16_t		seq,
+	uint32_t		originateTs)
+{
+	uint32_t totalLen;
+
+	if (!req)
+		return (0);
+
+	totalLen = sizeof(tIcmp4Timestamp);
+	if (bufferSize < totalLen)
+		return (0);
+
+	buildIcmpv4Hdr(&req->hdr, ICMP4_TIMESTAMP, 0);
+	req->id = ipHtons(id);
+	req->sequence = ipHtons(seq);
+	req->originateTs = ipHtonl(originateTs);
+	req->receiveTs = 0;
+	req->transmitTs = 0;
+
+	req->hdr.checksum = icmpChecksum(req, totalLen);
+	return (totalLen);
+}
+
+const tIcmp4Timestamp *
+icmp4ParseTimestamp(const void *data, uint32_t len)
+{
+	const tIcmp4Timestamp *ts;
+
+	if (!data || len < sizeof(tIcmp4Timestamp))
+		return (NULL);
+
+	ts = (const tIcmp4Timestamp *)data;
+	if (ts->hdr.type != ICMP4_TIMESTAMP && ts->hdr.type != ICMP4_TIMESTAMP_REPLY)
+		return (NULL);
+
+	return ts;
+}
+
+
 /* ----------------- ICMP V6 ----------------- */
 
 uint16_t
