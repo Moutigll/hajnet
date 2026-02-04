@@ -127,114 +127,120 @@ setupPingSocket(
 	return (0);
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
-	tParseResult res;
-	int ret;
+	tParseResult				parseRes;
+	int							ret;
+	int							i;
 
-	/* Parse command-line arguments */
-	ret = parseArgs(argc, argv, &res);
-	switch (ret)
-	{
-		case PARSE_HELP:
-			printFullHelp(argv[0]);
-			return EXIT_SUCCESS;
-		case PARSE_USAGE:
-			printUsage(argv[0]);
-			return EXIT_SUCCESS;
-		case PARSE_OK:
-			break;
-	}
+	ret = parseArgs(argc, argv, &parseRes);
+	if (ret == PARSE_HELP)
+		return (printFullHelp(argv[0]), EXIT_SUCCESS);
+	if (ret == PARSE_USAGE)
+		return (printUsage(argv[0]), EXIT_SUCCESS);
 
-	/* Check that at least one host was provided */
-	if (res.posCount == 0)
+	if (parseRes.posCount == 0)
 	{
 		printMissingHost(argv[0]);
-		return EXIT_MISSING_HOST;
+		return (EXIT_MISSING_HOST);
 	}
 
-	/* Iterate over all provided hosts */
-	for (int i = 0; i < res.posCount; i++)
+	for (i = 0; i < parseRes.posCount; i++)
 	{
-		const char *host = res.positionals[i];
-		struct sockaddr_storage targetAddr;
-		socklen_t addrLen;
-		struct addrinfo *allAddrs = NULL;
-		tPingSocket sockCtx;
-		tPingContext ctx;
-		tIpType ipMode = IP_TYPE_V4;
+		const char					*host;
+		struct sockaddr_storage		targetAddr;
+		socklen_t					addrLen;
+		struct addrinfo				*addrList;
+		tPingSocket					sockCtx;
+		tPingContext				ctx;
+		tIpType						ipMode;
+
+		host = parseRes.positionals[i];
+		addrList = NULL;
+		ipMode = IP_TYPE_V4;
 
 #if defined(HAJ)
-		/* Allow forcing IPv4 / IPv6 */
 		ipMode = IP_TYPE_UNSPEC;
-		if (res.options.v4)
+		if (parseRes.options.v4)
 			ipMode = IP_TYPE_V4;
-		else if (res.options.v6)
+		else if (parseRes.options.v6)
 			ipMode = IP_TYPE_V6;
 #endif
 
-		/* Resolve hostname */
-		ret = resolveHost(host, &targetAddr, &addrLen, &allAddrs, ipMode);
+		ret = resolveHost(host,
+						  &targetAddr,
+						  &addrLen,
+						  &addrList,
+						  ipMode);
 		if (ret != 0)
 		{
-			if (res.options.verbose <= 1) {
-				fprintf(stderr, "%s: unknown host\n", argv[0]);
-				exit(EXIT_FAILURE);
-			}
-			else
-				fprintf(stderr, "Failed to resolve host '%s': %s\n",
-						host, gai_strerror(ret));
+			fprintf(stderr,
+					"%s: %s\n",
+					argv[0],
+					parseRes.options.verbose ?
+					gai_strerror(ret) : "unknown host");
 			continue;
 		}
 
-		/* Verbose output */
-		if (res.options.verbose > 1)
+		if (parseRes.options.verbose > 1)
 			printPrimaryIP(&targetAddr, host);
-		if (res.options.verbose > 2 && allAddrs)
-			printAllResolvedIPs(allAddrs, host);
+		if (parseRes.options.verbose > 2 && addrList)
+			printAllResolvedIPs(addrList, host);
 
-		/* Setup raw socket */
-		if (setupPingSocket(&sockCtx, &res.options, &targetAddr) != 0)
+		if (setupPingSocket(&sockCtx,
+							&parseRes.options,
+							&targetAddr) != 0)
 		{
-			if (allAddrs)
-				freeaddrinfo(allAddrs);
+			freeaddrinfo(addrList);
 			continue;
 		}
 
-		/* Initialize ping context */
 		memset(&ctx, 0, sizeof(ctx));
-		ctx.opts = res.options;
+		ctx.opts = parseRes.options;
 		ctx.sock = sockCtx;
 		ctx.targetAddr = targetAddr;
 		ctx.addrLen = addrLen;
-		ctx.seq = 0;
-		ctx.pid = getpid() & 0xFFFF; /* ICMP identifier */
+		ctx.pid = getpid() & 0xFFFF;
 		strncpy(ctx.targetHost, host, sizeof(ctx.targetHost) - 1);
 
-		/* Fill resolved IP string safely */
-		if (targetAddr.ss_family == AF_INET)
+#if defined(HAJ)
 		{
-			struct sockaddr_in *addr4 = (struct sockaddr_in *)&targetAddr;
-			inet_ntop(AF_INET, &addr4->sin_addr, ctx.resolvedIp, sizeof(ctx.resolvedIp));
-		}
-		else if (targetAddr.ss_family == AF_INET6)
-		{
-			struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&targetAddr;
-			inet_ntop(AF_INET6, &addr6->sin6_addr, ctx.resolvedIp, sizeof(ctx.resolvedIp));
-		}
-		else
-			snprintf(ctx.resolvedIp, sizeof(ctx.resolvedIp), "unknown");
+			char	tmpCanon[NI_MAXHOST];
 
-		/* Run the ping loop */
+			tmpCanon[0] = '\0';
+			if (addrList && addrList->ai_canonname)
+			{
+				strncpy(tmpCanon,
+						addrList->ai_canonname,
+						sizeof(tmpCanon) - 1);
+				tmpCanon[sizeof(tmpCanon) - 1] = '\0';
+			}
+
+			resolvePeerName(&targetAddr,
+							addrLen,
+							tmpCanon,
+							ctx.canonicalName,
+							sizeof(ctx.canonicalName));
+		}
+#endif
+
+		if (targetAddr.ss_family == AF_INET)
+			inet_ntop(AF_INET,
+					  &((struct sockaddr_in *)&targetAddr)->sin_addr,
+					  ctx.resolvedIp,
+					  sizeof(ctx.resolvedIp));
+		else if (targetAddr.ss_family == AF_INET6)
+			inet_ntop(AF_INET6,
+					  &((struct sockaddr_in6 *)&targetAddr)->sin6_addr,
+					  ctx.resolvedIp,
+					  sizeof(ctx.resolvedIp));
+
 		runPingLoop(&ctx);
 
-		/* Cleanup */
 		pingSocketClose(&ctx.sock);
-		if (allAddrs)
-			freeaddrinfo(allAddrs);
-
-		printf("\n"); /* separate hosts */
+		freeaddrinfo(addrList);
+		printf("\n");
 	}
-
 	return (EXIT_SUCCESS);
 }

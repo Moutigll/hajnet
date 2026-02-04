@@ -86,6 +86,7 @@ typedef struct sPingContext
 	struct timeval			startTime;			/* time when ping started */
 
 	char					targetHost[256];	/* target hostname */
+	char					canonicalName[256];	/* canonical name */
 	char					resolvedIp[INET6_ADDRSTRLEN];	/* resolved IP address */
 } tPingContext;
 

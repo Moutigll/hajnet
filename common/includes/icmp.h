@@ -11,6 +11,7 @@
 
 #define ICMP_TIMESTAMP_SIZE 8
 #define ICMP4_HDR_LEN 8
+#define ICMP6_HDR_LEN 8
 
 /**
  * @brief ICMPv4 Message Types

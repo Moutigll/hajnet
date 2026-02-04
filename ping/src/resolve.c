@@ -13,11 +13,12 @@
  * @param ipMode - IP version preference (IPv4, IPv6, or unspecified)
  * @return 0 on success, non-zero gai_strerror() code on failure
  */
-int resolveHost(const char *host,
-				struct sockaddr_storage *outAddr,
-				socklen_t *outLen,
-				struct addrinfo **outList,
-				tIpType ipMode)
+int
+resolveHost(const char				*host,
+				struct sockaddr_storage	*outAddr,
+				socklen_t				*outLen,
+				struct addrinfo			**outList,
+				tIpType					ipMode)
 {
 	struct addrinfo hints;
 	struct addrinfo *res = NULL, *cur;
@@ -83,4 +84,41 @@ int resolveHost(const char *host,
 		freeaddrinfo(res);
 
 	return (0);
+}
+
+int
+resolvePeerName(
+		const struct sockaddr_storage	*addr,
+					socklen_t			addrLen,
+					const char			*canonName,
+					char				*out,
+					size_t				outSize)
+{
+	int	ret;
+
+	if (!addr || !out || outSize == 0)
+		return (-1);
+
+	out[0] = '\0';
+
+	/* Try reverse DNS (PTR) */
+	ret = getnameinfo((const struct sockaddr *)addr,
+					  addrLen,
+					  out,
+					  outSize,
+					  NULL,
+					  0,
+					  NI_NAMEREQD);
+	if (ret == 0)
+		return (0);
+
+	/* Fallback to canonical name */
+	if (canonName && canonName[0])
+	{
+		strncpy(out, canonName, outSize - 1);
+		out[outSize - 1] = '\0';
+		return (0);
+	}
+
+	return (-1);
 }

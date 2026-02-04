@@ -58,14 +58,53 @@ sendIcmpPacket(tPingContext *ctx)
 		memcpy(payload, &tv, sizeof(tv));
 	}
 
-	packetLen = buildIcmpv4EchoRequest(
-		(tIcmp4Echo *)packet,
-		sizeof(packet),
-		(uint16_t)ctx->pid,
-		(uint16_t)ctx->seq,
-		(payloadLen ? payload : NULL),
-		payloadLen
-	);
+	if (ctx->targetAddr.ss_family == AF_INET)
+	{
+		packetLen = buildIcmpv4EchoRequest(
+			(tIcmp4Echo *)packet,
+			sizeof(packet),
+			(uint16_t)ctx->pid,
+			(uint16_t)ctx->seq,
+			(payloadLen ? payload : NULL),
+			payloadLen
+		);
+	}
+#if defined(AF_INET6)
+	else if (ctx->targetAddr.ss_family == AF_INET6)
+	{
+		const struct sockaddr_in6 *dst6 = (const struct sockaddr_in6 *)&ctx->targetAddr;
+		struct in6_addr src6;
+		int doChecksum = (ctx->sock.privilege == SOCKET_PRIV_RAW);
+		/* try to get local src addr for checksum when RAW */
+		if (doChecksum)
+		{
+			struct sockaddr_storage local;
+			socklen_t l = sizeof(local);
+			if (getsockname(ctx->sock.fd, (struct sockaddr *)&local, &l) == 0
+				&& local.ss_family == AF_INET6)
+				src6 = ((struct sockaddr_in6 *)&local)->sin6_addr;
+			else
+				src6 = in6addr_any;
+		}
+		packetLen = buildIcmpv6EchoRequest(
+			(tIcmp6Echo *)packet,
+			sizeof(packet),
+			(uint16_t)ctx->pid,
+			(uint16_t)ctx->seq,
+			(payloadLen ? payload : NULL),
+			payloadLen,
+			(doChecksum ? &src6 : NULL),
+			&dst6->sin6_addr,
+			doChecksum
+		);
+	}
+#endif
+	else
+	{
+		fprintf(stderr, "Unsupported address family %d\n", ctx->targetAddr.ss_family);
+		return (-1);
+	}
+
 	if (packetLen == 0)
 		return (-1);
 
@@ -257,12 +296,25 @@ validateIcmpReply(
 	if (!ctx || !icmp || !from || !seqOut)
 		return (-1);
 
-	if (icmpLen < ICMP4_HDR_LEN)
-		return (-1);
-
-	/* only consider Echo Reply */
-	if (icmp[0] != ICMP4_ECHO_REPLY)
-		return (-1);
+/* require at least ICMP header size */
+	if (ctx->targetAddr.ss_family == AF_INET)
+	{
+		if (icmpLen < ICMP4_HDR_LEN)
+			return (-1);
+		/* only consider IPv4 Echo Reply */
+		if (icmp[0] != ICMP4_ECHO_REPLY)
+			return (-1);
+	}
+#if defined(AF_INET6)
+	else if (ctx->targetAddr.ss_family == AF_INET6)
+	{
+		if (icmpLen < ICMP6_HDR_LEN)
+			return (-1);
+		/* only consider IPv6 Echo Reply */
+		if (icmp[0] != ICMP6_ECHO_REPLY)
+			return (-1);
+	}
+#endif
 
 	/* id/seq are at offsets 4 and 6 (network order) */
 	memcpy(&idNet, icmp + 4, sizeof(idNet));
@@ -315,7 +367,12 @@ computeIcmpRtt(
 		return;
 
 	userPayload = computeUserPayloadSize(&ctx->opts);
-	offset = ICMP4_HDR_LEN; /* payload starts after 8-byte ICMP header */
+
+	/* ICMP header length is 8 for both v4 and v6, but keep family check for clarity */
+	if (ctx->targetAddr.ss_family == AF_INET6)
+		offset = ICMP6_HDR_LEN;
+	else
+		offset = ICMP4_HDR_LEN;
 
 	memset(rtt, 0, sizeof(*rtt));
 	if (userPayload < sizeof(sentTv))
@@ -327,6 +384,7 @@ computeIcmpRtt(
 	gettimeofday(&now, NULL);
 	timersub(&now, &sentTv, rtt);
 }
+
 
 /*
  * Top-level receive: choose RAW vs DGRAM helpers, validate, compute rtt.
@@ -481,7 +539,6 @@ runPingLoop(tPingContext *ctx)
 
 				if (receiveIcmpReply(ctx, buf, sizeof(buf), &replyInfo) != 0)
 					continue;
-
 				haveRtt = (userPayload >= sizeof(struct timeval) &&
 						   (replyInfo.rtt.tv_sec != 0 || replyInfo.rtt.tv_usec != 0));
 
@@ -502,11 +559,20 @@ runPingLoop(tPingContext *ctx)
 
 				replyBytes = onWireHeader + userPayload;
 
-				printf("%u bytes from %s: icmp_seq=%u ttl=%u",
+#if defined(HAJ)
+				printf("%u bytes from %s (%s): icmp_seq=%u ttl=%u",
 					   replyBytes,
 					   ctx->resolvedIp,
+					   ctx->canonicalName,
 					   replyInfo.seq,
 					   replyInfo.ttl);
+#else
+				printf("%u bytes from %s: icmp_seq=%u ttl=%u",
+						   replyBytes,
+						   ctx->resolvedIp,
+						   replyInfo.seq,
+						   replyInfo.ttl);
+#endif
 
 				if (haveRtt)
 					printf(" time=%.3f ms", ms);
