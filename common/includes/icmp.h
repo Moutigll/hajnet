@@ -1,8 +1,11 @@
 #ifndef HAJ_ICMP_H
 #define HAJ_ICMP_H
 
+
+#include <netinet/in.h>
+#include <sys/time.h>
+
 #include "stdint.h"
-#include <bits/types/struct_timeval.h>
 
 /* ----------------- ICMPv4 Definitions ----------------- */
 
@@ -323,6 +326,55 @@ const tIcmp4Hdr *icmp4ParseHeader(const void *data, uint32_t len);
  * @return pointer to ICMPv4 Echo structure, or NULL on error
  */
 const tIcmp4Echo *icmp4ParseEcho(const void *data, uint32_t len);
+
+/* ----------------- ICMPv6 Functions ----------------- */
+
+/**
+ * @brief Compute ICMPv6 checksum
+ * @param src - pointer to source IPv6 address
+ * @param dst - pointer to destination IPv6 address
+ * @param data - pointer to ICMPv6 message
+ * @param len - length in bytes
+ * @return checksum
+ */
+uint16_t icmpv6Checksum(
+	const struct in6_addr	*src,
+	const struct in6_addr	*dst,
+	const void				*data,
+	uint32_t				len);
+
+/**
+ * @brief Build ICMPv6 Echo Request packet
+ * @param req - pointer to ICMPv6 Echo structure to fill
+ * @param bufferSize - size of the buffer pointed to by req
+ * @param id - Identifier
+ * @param seq - Sequence Number
+ * @param payload - pointer to payload data
+ * @param payloadLen - length of payload data in bytes
+ * @param src - pointer to source IPv6 address
+ * @param dst - pointer to destination IPv6 address
+ * @param doChecksum - whether to compute and set the checksum
+ * @return total length of the ICMPv6 Echo Request packet, or 0 on error
+ */
+uint32_t
+buildIcmpv6EchoRequest(
+	tIcmp6Echo				*req,
+	uint32_t				bufferSize,
+	uint16_t				id,
+	uint16_t				seq,
+	const void				*payload,
+	uint32_t				payloadLen,
+	const struct in6_addr	*src,
+	const struct in6_addr	*dst,
+	int						doChecksum);
+
+/**
+ * @brief Parse ICMPv6 header from raw data
+ * @param data - pointer to raw data
+ * @param len - length of the data in bytes
+ * @return pointer to ICMPv6 header structure, or NULL on error
+ */
+const tIcmp6Hdr *icmp6ParseHeader(const void *data, uint32_t len);
 
 /* ----------------- ICMP Print Functions ----------------- */
 

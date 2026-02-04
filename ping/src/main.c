@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -176,8 +177,10 @@ int main(int argc, char **argv)
 		ret = resolveHost(host, &targetAddr, &addrLen, &allAddrs, ipMode);
 		if (ret != 0)
 		{
-			if (res.options.verbose <= 1)
+			if (res.options.verbose <= 1) {
 				fprintf(stderr, "%s: unknown host\n", argv[0]);
+				exit(EXIT_FAILURE);
+			}
 			else
 				fprintf(stderr, "Failed to resolve host '%s': %s\n",
 						host, gai_strerror(ret));
@@ -220,9 +223,7 @@ int main(int argc, char **argv)
 			inet_ntop(AF_INET6, &addr6->sin6_addr, ctx.resolvedIp, sizeof(ctx.resolvedIp));
 		}
 		else
-		{
 			snprintf(ctx.resolvedIp, sizeof(ctx.resolvedIp), "unknown");
-		}
 
 		/* Run the ping loop */
 		runPingLoop(&ctx);
@@ -235,5 +236,5 @@ int main(int argc, char **argv)
 		printf("\n"); /* separate hosts */
 	}
 
-	return EXIT_SUCCESS;
+	return (EXIT_SUCCESS);
 }
