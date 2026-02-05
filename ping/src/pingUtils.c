@@ -1,6 +1,12 @@
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/ip.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
+#include "../../common/includes/ip.h"
+#include "../includes/parser.h"
 #include "../includes/pingUtils.h"
 
 void
@@ -70,4 +76,77 @@ printIcmpv4TimestampReply(const tIcmp4Echo *ts)
 	printf("icmp_otime = %u\n", otime);
 	printf("icmp_rtime = %u\n", rtime);
 	printf("icmp_ttime = %u\n", ttime);
+}
+
+void
+printIp4Timestamps(tIpHdr *hdr)
+{
+	if (!hdr)
+		return;
+
+	for (int i = 0; i < 10; ++i)
+	{
+		if (hdr->options[i].type != IP_OPT_TS)
+			continue;
+		unsigned char *data = hdr->options[i].data;
+		size_t len = hdr->options[i].length;
+
+		if (len < 4)
+			continue;
+
+		unsigned char flags = data[1];
+		size_t payloadLen = (len >= 2) ? (len - 2) : 0;
+		const unsigned char *payload = data + 2;
+
+		int printedAny = 0;
+
+		if ((flags & 0xF) == IP_OPT_TS_TSONLY)
+		{
+			for (size_t off = 0; off + 4 <= payloadLen; off += 4)
+			{
+				uint32_t raw;
+				memcpy(&raw, payload + off, 4);
+				raw = ntohl(raw);
+				if (raw == 0)
+					continue;
+
+				if (!printedAny)
+				{
+					printf("TS:\t%u", raw);
+					printedAny = 1;
+				}
+				else
+					printf("\n\t%u", raw);
+			}
+		}
+		else if ((flags & 0xF) == IP_OPT_TS_TSANDADDR || (flags & 0xF) == IP_OPT_TS_PRESPEC)
+		{
+			for (size_t off = 8; off + 8 <= payloadLen; off += 8)
+			{
+				struct in_addr a;
+				uint32_t raw;
+				memcpy(&a.s_addr, payload + off, 4);
+				memcpy(&raw, payload + off + 4, 4);
+				raw = ntohl(raw);
+				if (a.s_addr == 0 && raw == 0)
+					continue;
+
+				char ipbuf[INET_ADDRSTRLEN];
+				if (!inet_ntop(AF_INET, &a, ipbuf, sizeof(ipbuf)))
+					snprintf(ipbuf, sizeof(ipbuf), "??");
+
+				if (!printedAny)
+				{
+					printf("TS:\t%s (%s)\t%u", ipbuf, ipbuf, raw);
+					printedAny = 1;
+				}
+				else
+					printf("\n\t%s (%s)\t%u", ipbuf, ipbuf, raw);
+			}
+		}
+
+		if (printedAny)
+			printf("\n\n");
+		break;
+	}
 }

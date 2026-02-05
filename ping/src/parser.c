@@ -126,6 +126,10 @@ parseIpTsValue(const char *optArg, const char *progName, tIpTsType *outType)
 		*outType = IP_TS_ONLY;
 	else if (strcmp(optArg, "tsaddr") == 0)
 		*outType = IP_TS_ADDR;
+#if defined(HAJ)
+	else if (strcmp(optArg, "tsprespec") == 0)
+		*outType = IP_TS_PRESPEC;
+#endif
 	else
 	{
 		fprintf(stderr, "%s: unsupported timestamp type: %s\n", progName, optArg);
@@ -193,7 +197,17 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 			case OPT_ICMP_ADDRESS: result->options.address = TRUE; break;
 			case OPT_ICMP_ECHO: result->options.echo = TRUE; break;
 			case OPT_ICMP_TIMESTAMP: result->options.timestamp = TRUE; break;
-			case OPT_TYPE: result->options.type = state.optArg; break;
+			case OPT_TYPE: {
+				if (strcmp(state.optArg, "timestamp") == 0)
+					result->options.timestamp = TRUE;
+				else if (strcmp(state.optArg, "echo") == 0)
+					result->options.timestamp = FALSE;
+				else
+				{
+					fprintf(stderr, "%s: unsupported packet type: %s\n", argv[0], state.optArg);
+					exit(EXIT_FAILURE);
+				}
+			} break;
 
 			case OPT_COUNT: result->options.count =
 				convertNumberOption(state.optArg, 0, 1, argv[0]); break;

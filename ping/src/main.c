@@ -96,10 +96,7 @@ setupPingSocket(
 
 	ret = pingSocketCreate(sockCtx);
 	if (ret != 0)
-	{
-		perror("pingSocketCreate");
 		return (-1);
-	}
 
 	if (socketApplyCommonOptions(sockCtx, opts) != 0)
 	{

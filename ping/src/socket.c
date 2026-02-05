@@ -1,10 +1,14 @@
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include "../includes/socket.h"
+#include "../includes/ping.h"
 #include "../includes/utils.h"
 
 tSocketPrivilege
@@ -62,17 +66,27 @@ sockValidatePrivileges(
 int
 pingSocketCreate(tPingSocket *ctx)
 {
-	int	type;
-
 	if (!ctx)
 		return (-1);
 
-	type = SOCK_DGRAM;
-	if (ctx->privilege == SOCKET_PRIV_RAW)
-		type = SOCK_RAW;
-	ctx->fd = socket(ctx->family, type, ctx->protocol);
+	ctx->fd = socket(ctx->family, SOCK_RAW, ctx->protocol);
 	if (ctx->fd < 0)
-		return (-1);
+	{
+		if (errno == EPERM || errno == EACCES)
+		{
+			ctx->fd = socket(ctx->family, SOCK_DGRAM, ctx->protocol);
+			if (ctx->fd < 0)
+			{
+				if (errno == EPERM || errno == EACCES || errno == EPROTONOSUPPORT)
+					fprintf (stderr, PROG_NAME ": Lacking privilege for icmp socket.\n");
+				else
+					fprintf (stderr, PROG_NAME ": %s\n", strerror (errno));
+				return (-1);
+			}
+			ctx->privilege = SOCKET_PRIV_USER;
+		}
+	} else
+		ctx->privilege = SOCKET_PRIV_RAW;
 	return (0);
 }
 
@@ -147,6 +161,53 @@ socketApplyOptions(tPingSocket *ctx, const tPingOptions *opts)
 				&opts->tos, sizeof(opts->tos));
 			if (ret < 0)
 				fatalError("setsockopt IP_TOS");
+		}
+		if (opts->recordRoute)
+		{
+			unsigned char	rr[40];
+			socklen_t		len;
+
+			memset(rr, 0, sizeof(rr));
+
+			rr[0] = IPOPT_RR;
+			rr[1] = sizeof(rr);
+			rr[2] = 4;
+
+			len = 3;
+			ret = setsockopt(ctx->fd, IPPROTO_IP, IP_OPTIONS, rr, len);
+			if (ret < 0)
+				fatalError("setsockopt IP_OPTIONS (record route)");
+		}
+		if (opts->ipTsType != IP_TS_NONE)
+		{
+			unsigned char	ts[40];
+			socklen_t		len;
+			int				ret;
+
+			/* Clear buffer */
+			memset(ts, 0, sizeof(ts));
+
+			/* IP Timestamp option header */
+			ts[0] = IPOPT_TIMESTAMP;	/* Option type */
+			ts[1] = sizeof(ts);			/* Total length of the option */
+			ts[2] = 5;					/* Pointer to next empty slot (first timestamp) */
+
+			/* Set flags based on requested type */
+			if (opts->ipTsType == IP_TS_ONLY)
+				ts[3] = IPOPT_TS_TSONLY;
+			else if (opts->ipTsType == IP_TS_ADDR)
+				ts[3] = IPOPT_TS_TSANDADDR;
+		#if defined(HAJ)
+			else if (opts->ipTsType == IP_TS_PRESPEC)
+				ts[3] = IPOPT_TS_PRESPEC;
+		#endif
+
+			/* Total length of option to pass to setsockopt */
+			len = ts[1];
+
+			ret = setsockopt(ctx->fd, IPPROTO_IP, IP_OPTIONS, ts, len);
+			if (ret < 0)
+				fatalError("setsockopt IP_OPTIONS (timestamp)");
 		}
 	}
 	else if (ctx->family == AF_INET6)

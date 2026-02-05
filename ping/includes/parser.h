@@ -18,7 +18,10 @@ typedef enum eIpTsType
 {
 	IP_TS_NONE = 0,
 	IP_TS_ONLY,
-	IP_TS_ADDR
+	IP_TS_ADDR,
+#if defined(HAJ)
+	IP_TS_PRESPEC
+#endif
 } tIpTsType;
 
 typedef struct sPingOptions
@@ -27,7 +30,6 @@ typedef struct sPingOptions
 	tBool			address;	/* send ICMP_ADDRESS packets */
 	tBool			echo;		/* send ICMP_ECHO packets */
 	tBool			timestamp;	/* send ICMP_TIMESTAMP packets */
-	char			*type;		/* send ICMP type as string */
 
 	/* Options for all types */
 	unsigned int	count;		/* number of packets to send */

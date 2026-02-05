@@ -157,6 +157,12 @@ typedef enum eIpOptionType
 	IP_OPT_SECURITY	= 130	/* Security - see RFC 1108 */
 } tIpOptionType;
 
+typedef enum eIpTimestampType{
+	IP_OPT_TS_TSONLY = 0,		/* Only timestamps are included */
+	IP_OPT_TS_TSANDADDR = 1,	/* Each timestamp is preceded by the corresponding IP address */
+	IP_OPT_TS_PRESPEC = 3		/* Pre-specified addresses, timestamps recorded only for those addresses */
+} tIpTimestampType;
+
 /**
  * @brief IP Option structure
  * Represents an IPv4 option.
@@ -332,5 +338,13 @@ void printIpv4Header(const tIpHdr *hdr);
  * @return length of the IPv4 header in bytes, or 0 on error
  */
 size_t parseIpHeaderFromBuffer(const void *buf, size_t len, tIpHdr *outHdr);
+
+/**
+ * @brief 
+ * @param buf - pointer to raw buffer containing IPv4 packet
+ * @param ipHeaderLen - length of the IPv4 header in bytes (including options)
+ * @param hdr - pointer to IPv4 header structure to fill with parsed options
+ */
+void parseIp4Opts(const unsigned char *buf, size_t ipHeaderLen, tIpHdr *hdr);
 
 #endif /* HAJ_IP_H */

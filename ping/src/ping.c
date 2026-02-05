@@ -77,7 +77,7 @@ sendIcmpPacket(tPingContext *ctx)
 			/* default Echo request */
 			packetLen = buildIcmpv4EchoRequest(
 				(tIcmp4Echo *)packet,
-				sizeof(tIcmp4Echo),
+				sizeof(packet),
 				(uint16_t)ctx->pid,
 				(uint16_t)ctx->seq,
 				(payloadLen ? payload : NULL),
@@ -281,6 +281,8 @@ recvIcmpRaw(tPingContext *ctx,
 	if (ipHeaderLen == 0)
 		return (-1);
 
+	parseIp4Opts((const unsigned char *)buf, ipHeaderLen, &ipHdr);
+
 	*ipHdrOut = &ipHdr;
 	*icmp = (const unsigned char *)buf + ipHeaderLen;
 	*icmpLen = n - ipHeaderLen;
@@ -307,7 +309,6 @@ validateIcmpReply(
 	uint16_t						*seqOut)
 {
 	uint16_t idNet, seqNet;
-
 
 	if (!ctx || !icmp || !from || !seqOut)
 		return (-1);
@@ -413,7 +414,8 @@ receiveIcmpReply(
 	tPingContext	*ctx,
 	void			*buf,
 	size_t			bufLen,
-	tIcmpReplyInfo	*info)
+	tIcmpReplyInfo	*info,
+	const tIpHdr	**ipHdrOut)
 {
 	struct sockaddr_storage	from;
 	const unsigned char		*icmp;
@@ -443,6 +445,8 @@ receiveIcmpReply(
 
 	/* compute RTT if available */
 	computeIcmpRtt(ctx, icmp, icmpLen, &info->rtt);
+
+	*ipHdrOut = ipHdr;
 
 	/* verbose: if RAW, also print parsed IP header */
 	if (ctx->opts.verbose > 4 && ipHdr)
@@ -554,8 +558,9 @@ runPingLoop(tPingContext *ctx)
 				double			ms;
 				int				haveRtt;
 				unsigned int	replyBytes;
+				const tIpHdr	*ipHdr = NULL;
 
-				if (receiveIcmpReply(ctx, buf, sizeof(buf), &replyInfo) != 0)
+				if (receiveIcmpReply(ctx, buf, sizeof(buf), &replyInfo, &ipHdr) != 0)
 					continue;
 				haveRtt = (userPayload >= sizeof(struct timeval) &&
 						   (replyInfo.rtt.tv_sec != 0 || replyInfo.rtt.tv_usec != 0));
@@ -596,6 +601,10 @@ runPingLoop(tPingContext *ctx)
 					printf(" time=%.3f ms", ms);
 
 				printf("\n");
+
+				if (ipHdr)
+					printIp4Timestamps((tIpHdr *)ipHdr);
+
 				if (ctx->opts.timestamp && replyInfo.type == ICMP4_TIMESTAMP_REPLY)
 					printIcmpv4TimestampReply((const tIcmp4Echo *)buf);
 

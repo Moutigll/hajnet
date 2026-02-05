@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 
+#include "../../common/includes/ip.h"
 #include "../../common/includes/icmp.h"
 #include "../includes/parser.h"
 
@@ -38,5 +39,11 @@ uint32_t msSinceMidnight(void);
  * @param ts - pointer to ICMPv4 Echo structure
  */
 void printIcmpv4TimestampReply(const tIcmp4Echo *ts);
+
+/**
+ * @brief Print IPv4 timestamp options from the header
+ * @param hdr - pointer to IPv4 header structure containing options
+ */
+void printIp4Timestamps(tIpHdr *hdr);
 
 #endif /* HAJ_PING_UTILS_H */
