@@ -92,6 +92,7 @@ printIp4Timestamps(tIpHdr *hdr)
 	{
 		if (hdr->options[i].type != IP_OPT_TS)
 			continue;
+
 		unsigned char *data = hdr->options[i].data;
 		size_t len = hdr->options[i].length;
 
@@ -139,18 +140,28 @@ printIp4Timestamps(tIpHdr *hdr)
 				if (!inet_ntop(AF_INET, &a, ipbuf, sizeof(ipbuf)))
 					snprintf(ipbuf, sizeof(ipbuf), "??");
 
+				struct sockaddr_in sa = {0};
+				sa.sin_family = AF_INET;
+				sa.sin_addr = a;
+
+				char revDns[NI_MAXHOST];
+				if (resolvePeerName((struct sockaddr_storage *)&sa, sizeof(sa),
+				                    NULL, revDns, sizeof(revDns)) != 0)
+					snprintf(revDns, sizeof(revDns), "%s", ipbuf);
+
 				if (!printedAny)
 				{
-					printf("TS:\t%s (%s)\t%u", ipbuf, ipbuf, raw);
+					printf("TS:\t%s (%s)\t%u", revDns, ipbuf, raw);
 					printedAny = 1;
 				}
 				else
-					printf("\n\t%s (%s)\t%u", ipbuf, ipbuf, raw);
+					printf("\n\t%s (%s)\t%u", revDns, ipbuf, raw);
 			}
 		}
 
 		if (printedAny)
 			printf("\n\n");
+
 		break;
 	}
 }
@@ -171,7 +182,6 @@ formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize)
 
 		unsigned char *data = hdr->options[i].data;
 		size_t len = hdr->options[i].length;
-
 		if (len < 3)
 			continue;
 
@@ -185,7 +195,6 @@ formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize)
 		{
 			uint32_t raw;
 			memcpy(&raw, payload + off, 4);
-
 			if (raw == 0)
 				continue;
 
@@ -196,29 +205,32 @@ formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize)
 			if (!inet_ntop(AF_INET, &a, ipbuf, sizeof(ipbuf)))
 				snprintf(ipbuf, sizeof(ipbuf), "??");
 
-			char hostbuf[64]; // <= limitation sécurisée
-			if (getnameinfo((struct sockaddr *)&a, sizeof(a),
-				hostbuf, sizeof(hostbuf), NULL, 0, NI_NAMEREQD) != 0)
-				snprintf(hostbuf, sizeof(hostbuf), "%s", ipbuf);
+			struct sockaddr_in sa = {0};
+			sa.sin_family = AF_INET;
+			sa.sin_addr = a;
+
+			char revDns[NI_MAXHOST];
+			if (resolvePeerName((struct sockaddr_storage *)&sa, sizeof(sa),
+			                    NULL, revDns, sizeof(revDns)) != 0)
+				snprintf(revDns, sizeof(revDns), "%s", ipbuf);
 
 			char line[128];
 			if (first)
 			{
-				snprintf(line, sizeof(line), "RR:\t%.31s (%.15s)", hostbuf, ipbuf);
+				snprintf(line, sizeof(line), "RR:\t%.31s (%.15s)", revDns, ipbuf);
 				first = 0;
 			}
 			else
 			{
 #if defined(HAJ)
-				if (strcmp(prevHost, hostbuf) == 0)
+				if (strcmp(prevHost, revDns) == 0)
 					snprintf(line, sizeof(line), "\n\t (same route)");
 				else
 #endif
-					snprintf(line, sizeof(line), "\n\t%.31s (%.15s)", hostbuf, ipbuf);
+					snprintf(line, sizeof(line), "\n\t%.31s (%.15s)", revDns, ipbuf);
 			}
 
-			strncpy(prevHost, hostbuf, sizeof(prevHost));
-
+			strncpy(prevHost, revDns, sizeof(prevHost));
 			size_t lineLen = strlen(line);
 			if (totalLen + lineLen + 1 >= bufSize)
 				break;
@@ -368,10 +380,13 @@ void checkIcmpErrorQueue(int sock, tBool numeric)
 }
 
 void
-drainIcmpErrorQueue(int sock, tBool numeric)
+drainIcmpErrorQueue(tPingContext *ctx)
 {
 	while (1)
 	{
+		if (!ctx)
+			return;
+		
 		struct msghdr msg = {0};
 		struct iovec iov;
 		unsigned char buf[1];
@@ -385,7 +400,7 @@ drainIcmpErrorQueue(int sock, tBool numeric)
 		msg.msg_control = cmsgbuf;
 		msg.msg_controllen = sizeof(cmsgbuf);
 
-		ssize_t n = recvmsg(sock, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
+		ssize_t n = recvmsg(ctx->sock.fd, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
 		if (n < 0)
 		{
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -393,14 +408,18 @@ drainIcmpErrorQueue(int sock, tBool numeric)
 			perror("recvmsg(MSG_ERRQUEUE)");
 			return;
 		}
-		(void)numeric; /* for potential future use in printing error info */
 		for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
 			 cmsg;
 			 cmsg = CMSG_NXTHDR(&msg, cmsg))
 		{
+			struct sock_extended_err *err;
+			err = (struct sock_extended_err *)CMSG_DATA(cmsg);
+			if (err->ee_origin == SO_EE_ORIGIN_ICMP ||
+				err->ee_origin == SO_EE_ORIGIN_ICMP6)
+				ctx->stats.errors++;
 			if (cmsg->cmsg_level == SOL_IP
 					|| cmsg->cmsg_level == SOL_IPV6)
-				handleCmsg(cmsg->cmsg_level, cmsg, numeric);
+				handleCmsg(cmsg->cmsg_level, cmsg, ctx->opts.numeric);
 			else
 				printf("Unknown cmsg_level=%d ignored\n", cmsg->cmsg_level);
 		}

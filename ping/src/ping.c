@@ -221,6 +221,9 @@ recvIcmpDgram(
 
 	n = recvmsg(ctx->sock.fd, &msg, 0);
 #if defined (HAJ)
+	checkIcmpErrorQueue(ctx->sock.fd, ctx->opts.numeric);
+	ctx->stats.errors++;
+#else
 	if (ctx->opts.verbose > 0)
 		checkIcmpErrorQueue(ctx->sock.fd, ctx->opts.numeric);
 #endif
@@ -369,9 +372,14 @@ validateIcmpReply(
 		if (icmp[0] != ICMP4_ECHO_REPLY &&
 			!(ctx->opts.timestamp && icmp[0] == ICMP4_TIMESTAMP_REPLY))
 		{
+#if defined (HAJ)
+			if (ctx->opts.verbose >= 0)
+#else
 			if (ctx->opts.verbose > 0)
+#endif
 			{
 				printInvalidIcmpError(from, icmp, icmpLen, ctx->opts.numeric);
+				ctx->stats.errors++;
 #ifndef HAJ
 				const unsigned char *ip = icmp - 20; /* ICMP starts after IP header */
 				if (icmpLen >= 28) /* minimal IPv4 header + ICMP header */
@@ -412,8 +420,15 @@ validateIcmpReply(
 		/* only consider IPv6 Echo Reply */
 		if (icmp[0] != ICMP6_ECHO_REPLY)
 		{
+#if defined (HAJ)
+			if (ctx->opts.verbose >= 0)
+#else
 			if (ctx->opts.verbose > 0)
+#endif
+			{
 				printInvalidIcmpError(from, icmp, icmpLen, ctx->opts.numeric);
+				ctx->stats.errors++;
+			}
 			return (-1);
 		}
 	}
@@ -581,15 +596,20 @@ pingLoopInit(
 	timevalFromDouble(interval, iv);
 	normalizeTimeval(interval);
 
+	memset(ctx->seqReceived, 0, sizeof(ctx->seqReceived));
+
 	gettimeofday(lastSend, NULL);
 
 	ctx->seq = 0;
 	ctx->stats.sent = 0;
 	ctx->stats.received = 0;
 	ctx->stats.lost = 0;
+	ctx->stats.errors = 0;
+	ctx->stats.duplicates = 0;
 	ctx->stats.rttMin = 0.0;
 	ctx->stats.rttMax = 0.0;
 	ctx->stats.rttSum = 0.0;
+	ctx->stats.rttSumSq = 0.0;
 }
 
 /**
@@ -749,7 +769,7 @@ runPingLoop(tPingContext *ctx)
 
 			if (ctx->targetAddr.ss_family == AF_INET6 &&
 				ctx->sock.privilege == SOCKET_PRIV_USER)
-				drainIcmpErrorQueue(ctx->sock.fd, ctx->opts.numeric);
+				drainIcmpErrorQueue(ctx);
 
 			if (sel == 0)
 				break; /* timeout, send next packet */
@@ -768,7 +788,7 @@ runPingLoop(tPingContext *ctx)
 						   (replyInfo.rtt.tv_sec != 0 || replyInfo.rtt.tv_usec != 0));
 
 				ms = 0.0;
-				if (haveRtt)
+				if (haveRtt && !ctx->seqReceived[replyInfo.seq])
 				{
 					ms = replyInfo.rtt.tv_sec * 1000.0
 					   + replyInfo.rtt.tv_usec / 1000.0;
@@ -805,6 +825,17 @@ runPingLoop(tPingContext *ctx)
 						printf(" time=%.3f ms", ms);
 
 				}
+
+				if (ctx->seqReceived[replyInfo.seq])
+				{
+					ctx->stats.duplicates++;
+				#if defined(HAJ)
+					printf(" (DUP!)");
+				#endif
+				}
+				else
+					ctx->seqReceived[replyInfo.seq] = TRUE;
+
 				if (ipHdr)
 				{
 					char	currRoute[512];

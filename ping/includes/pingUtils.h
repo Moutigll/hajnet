@@ -7,6 +7,7 @@
 #include "../../common/includes/ip.h"
 #include "../../common/includes/icmp.h"
 #include "../includes/parser.h"
+#include "ping.h"
 
 /**
  * @brief Convert double seconds to timeval
@@ -74,6 +75,6 @@ void checkIcmpErrorQueue(int sock, tBool numeric);
  * @brief Drain the ICMP error queue to remove any pending errors
  * @param sock - socket file descriptor to drain
  */
-void drainIcmpErrorQueue(int sock, tBool numeric);
+void drainIcmpErrorQueue(tPingContext *ctx);
 
 #endif /* HAJ_PING_UTILS_H */

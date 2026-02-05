@@ -17,6 +17,7 @@
 #define PING_MAX_PATTERN_LEN	256
 #define PING_MAX_POSITIONALS	16
 #define PING_MAX_PACKET_SIZE	1024
+#define MAX_SEQ 65536
 #define ICMP_DATA_OFFSET sizeof(struct tIcmp4Hdr)
 
 #if defined (HAJ)
@@ -63,6 +64,8 @@ typedef struct sPingStats
 	unsigned int	sent;		/* number of packets sent */
 	unsigned int	received;	/* number of packets received */
 	unsigned int	lost;		/* number of lost packets */
+	unsigned int	errors;		/* number of errors (e.g., invalid ICMP replies) */
+	unsigned int	duplicates;	/* number of duplicate replies */
 	double			rttMin;		/* minimum round-trip time (ms) */
 	double			rttMax;		/* maximum round-trip time (ms) */
 	double			rttSum;		/* sum of RTTs (for average) */
@@ -88,6 +91,8 @@ typedef struct sPingContext
 	char					targetHost[256];	/* target hostname */
 	char					canonicalName[256];	/* canonical name */
 	char					resolvedIp[INET6_ADDRSTRLEN];	/* resolved IP address */
+
+	tBool			seqReceived[MAX_SEQ];
 } tPingContext;
 
 /**

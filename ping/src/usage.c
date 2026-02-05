@@ -133,11 +133,23 @@ printPingSummary(tPingContext *ctx)
 #else
 	printf("--- %s " PROG_NAME " statistics ---\n", ctx->targetHost);
 #endif
-	printf("%u packets transmitted, %u received, %.0f%% packet loss",
-			ctx->stats.sent,
-			ctx->stats.received,
-			ctx->stats.sent > 0 ? ((ctx->stats.sent - ctx->stats.received) * 100.0 / ctx->stats.sent) : 0.0);
+	unsigned int actualReceived = ctx->stats.received - ctx->stats.duplicates;
+	double lossPercent = ctx->stats.sent > 0
+		? ((double)(ctx->stats.sent - actualReceived) * 100.0 / (double)ctx->stats.sent)
+		: 0.0;
 
+
+	printf("%u packets transmitted, %u received, %.0f%% packet loss",
+		   ctx->stats.sent,
+		   ctx->stats.received,
+		   lossPercent);
+
+#if defined(HAJ)
+	if (ctx->stats.errors > 0)
+		printf(" +%u errors", ctx->stats.errors);
+	if (ctx->stats.duplicates > 0)
+		printf(" ++%u duplicates", ctx->stats.duplicates);
+#endif
 	/* Calculate average RTT and standard deviation */
 	if (ctx->stats.received > 0 && (ctx->opts.packetSize == 0 || ctx->opts.packetSize >= (int)sizeof(struct timeval))) /* if the size is smaller than 16 octets we can't fit a timestamp so no rtt srry :/ */
 	{
