@@ -70,4 +70,10 @@ void printInvalidIcmpError(
  */
 void checkIcmpErrorQueue(int sock, tBool numeric);
 
+/**
+ * @brief Drain the ICMP error queue to remove any pending errors
+ * @param sock - socket file descriptor to drain
+ */
+void drainIcmpErrorQueue(int sock, tBool numeric);
+
 #endif /* HAJ_PING_UTILS_H */

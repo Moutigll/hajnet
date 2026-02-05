@@ -450,4 +450,20 @@ const char *icmp4TypeName(uint8_t type);
  * @return string representation of the code, or "Unknown" if not recognized
  */
 const char *icmp4CodeName(uint8_t type, uint8_t code);
+
+/**
+ * @brief Get string representation of ICMPv6 type
+ * @param type - ICMPv6 type
+ * @return string representation of the type, or "Unknown" if not recognized
+ */
+const char *icmp6TypeName(uint8_t type);
+
+/**
+ * @brief Get string representation of ICMPv6 code for a given type
+ * @param type - ICMPv6 type
+ * @param code - ICMPv6 code
+ * @return string representation of the code, or "Unknown" if not recognized
+ */
+const char *icmp6CodeName(uint8_t type, uint8_t code);
+
 #endif /* HAJ_ICMP_H */

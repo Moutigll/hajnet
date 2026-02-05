@@ -189,3 +189,48 @@ printIcmp4Packet(const void *pkt, uint32_t len)
 			break;
 	}
 }
+
+const char *
+icmp6TypeName(uint8_t type)
+{
+	switch (type)
+	{
+		case ICMP6_ECHO_REQUEST:	return "Echo Request";
+		case ICMP6_ECHO_REPLY:		return "Echo Reply";
+		case ICMP6_DEST_UNREACH:		return "Destination Unreachable";
+		case ICMP6_PACKET_TOO_BIG:	return "Packet Too Big";
+		case ICMP6_TIME_EXCEEDED:	return "Time Exceeded";
+		case ICMP6_PARAM_PROBLEM:		return "Parameter Problem";
+		default:					return "Unknown";
+	}
+}
+
+const char *
+icmp6CodeName(uint8_t type, uint8_t code)
+{
+	if (type == ICMP6_TIME_EXCEEDED)
+	{
+		switch (code)
+		{
+			case ICMP6_HOP_LIMIT_EXCEEDED:
+				return "Hop limit exceeded";
+			case ICMP6_REASSEMBLY_EXCEEDED:
+				return "Fragment reassembly time exceeded";
+			default:
+				return "Unknown TE";
+		}
+	}
+	if (type == ICMP6_DEST_UNREACH)
+	{
+		switch (code)
+		{
+			case ICMP6_NO_ROUTE:			return "No route to destination";
+			case ICMP6_ADMIN_PROHIBITED:	return "Administratively prohibited";
+			case ICMP6_BEYOND_SCOPE:		return "Beyond scope";
+			case ICMP6_ADDR_UNREACH:		return "Address unreachable";
+			case ICMP6_PORT_UNREACH:		return "Port unreachable";
+			default:						return "Unknown DU";
+		}
+	}
+	return "No code";
+}

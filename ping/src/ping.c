@@ -297,7 +297,6 @@ recvIcmpRaw(tPingContext *ctx,
 	msg.msg_controllen = sizeof(cmsgbuf);
 
 	n = recvmsg(ctx->sock.fd, &msg, 0);
-	printf("recvmsg returned %zd\n", n);
 	if (n <= 0)
 		return (-1);
 
@@ -312,15 +311,26 @@ recvIcmpRaw(tPingContext *ctx,
 		}
 	}
 
-	/* Parse IP header from received buffer */
-	static tIpHdr ipHdr;
-	size_t ipHeaderLen = parseIpHeaderFromBuffer(buf, (size_t)n, &ipHdr);
-	if (ipHeaderLen == 0)
-		return (-1);
+	size_t ipHeaderLen = 0;
 
-	parseIp4Opts((const unsigned char *)buf, ipHeaderLen, &ipHdr);
+	if (ctx->sock.family == AF_INET)
+	{
+		static tIpHdr ipHdr;
 
-	*ipHdrOut = &ipHdr;
+		ipHeaderLen = parseIpHeaderFromBuffer(buf, (size_t)n, &ipHdr);
+		if (ipHeaderLen == 0)
+			return (-1);
+
+		parseIp4Opts((const unsigned char *)buf, ipHeaderLen, &ipHdr);
+		*ipHdrOut = &ipHdr;
+	}
+	else if (ctx->sock.family == AF_INET6)
+	{
+		/* RAW ICMPv6 socket: buffer starts with ICMPv6 header */
+		ipHeaderLen = 0;
+		*ipHdrOut = NULL;
+	}
+
 	*icmp = (const unsigned char *)buf + ipHeaderLen;
 	*icmpLen = n - ipHeaderLen;
 	*ttl = (uint8_t)recvTtl;
@@ -432,7 +442,6 @@ validateIcmpReply(
 			return (-1);
 	}
 #endif
-	
 
 	return (0);
 }
@@ -737,6 +746,10 @@ runPingLoop(tPingContext *ctx)
 					exit(EXIT_FAILURE);
 				}
 			}
+
+			if (ctx->targetAddr.ss_family == AF_INET6 &&
+				ctx->sock.privilege == SOCKET_PRIV_USER)
+				drainIcmpErrorQueue(ctx->sock.fd, ctx->opts.numeric);
 
 			if (sel == 0)
 				break; /* timeout, send next packet */

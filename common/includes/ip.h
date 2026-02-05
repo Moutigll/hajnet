@@ -347,4 +347,18 @@ size_t parseIpHeaderFromBuffer(const void *buf, size_t len, tIpHdr *outHdr);
  */
 void parseIp4Opts(const unsigned char *buf, size_t ipHeaderLen, tIpHdr *hdr);
 
+/**
+ * @brief Parse IPv6 header (base + extensions) from buffer
+ * Fills outHdr structure and returns total header length (>= 40).
+ * Returns 0 on error (buffer too small or malformed).
+ */
+size_t parseIp6HeaderFromBuffer(const void *buf, size_t len, tIp6Hdr *outHdr);
+
+/**
+ * @brief Parse IPv6 extension headers from buffer
+ * Fills outHdr structure with the final next_header value and returns total header length including extensions.
+ * Returns 0 on error (buffer too small or malformed).
+ */
+size_t parseIp6ExtensionsFromBuffer(const void *buf, size_t len, tIp6Hdr *outHdr);
+
 #endif /* HAJ_IP_H */

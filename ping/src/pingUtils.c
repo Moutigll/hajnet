@@ -276,7 +276,8 @@ printInvalidIcmpError(
 #if defined(AF_INET6)
 	else if (from->ss_family == AF_INET6)
 	{
-		/* TODO: implement icmpv6TypeName and icmpv6CodeName for better output */
+		typeName = icmp6TypeName(type);
+		codeName = icmp6CodeName(type, code);
 	}
 #endif
 
@@ -300,9 +301,9 @@ static void handleCmsg(int level, struct cmsghdr *cmsg, tBool numeric)
 {
 	struct sock_extended_err *err;
 	unsigned char icmp[8] = {0};
-
 	err = (struct sock_extended_err *)CMSG_DATA(cmsg);
-	if (err->ee_origin != SO_EE_ORIGIN_ICMP)
+	if (err->ee_origin != SO_EE_ORIGIN_ICMP &&
+		err->ee_origin != SO_EE_ORIGIN_ICMP6)
 		return;
 
 	if (level == SOL_IP)
@@ -363,5 +364,45 @@ void checkIcmpErrorQueue(int sock, tBool numeric)
 			handleCmsg(cmsg->cmsg_level, cmsg, numeric);
 		else
 			printf("Unknown cmsg_level=%d ignored\n", cmsg->cmsg_level);
+	}
+}
+
+void
+drainIcmpErrorQueue(int sock, tBool numeric)
+{
+	while (1)
+	{
+		struct msghdr msg = {0};
+		struct iovec iov;
+		unsigned char buf[1];
+		unsigned char cmsgbuf[1024];
+
+		iov.iov_base = buf;
+		iov.iov_len = sizeof(buf);
+
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
+		msg.msg_control = cmsgbuf;
+		msg.msg_controllen = sizeof(cmsgbuf);
+
+		ssize_t n = recvmsg(sock, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
+		if (n < 0)
+		{
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				return;
+			perror("recvmsg(MSG_ERRQUEUE)");
+			return;
+		}
+		(void)numeric; /* for potential future use in printing error info */
+		for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+			 cmsg;
+			 cmsg = CMSG_NXTHDR(&msg, cmsg))
+		{
+			if (cmsg->cmsg_level == SOL_IP
+					|| cmsg->cmsg_level == SOL_IPV6)
+				handleCmsg(cmsg->cmsg_level, cmsg, numeric);
+			else
+				printf("Unknown cmsg_level=%d ignored\n", cmsg->cmsg_level);
+		}
 	}
 }
