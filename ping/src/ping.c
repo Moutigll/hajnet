@@ -49,13 +49,29 @@ sendIcmpPacket(tPingContext *ctx)
 
 	payloadLen = userPayload;
 
-	/* prepare payload: zero and, if possible, copy timeval at start */
 	if (payloadLen > 0)
-		memset(payload, 0, payloadLen);
-	if (payloadLen >= (uint32_t)sizeof(tv))
 	{
-		gettimeofday(&tv, NULL);
-		memcpy(payload, &tv, sizeof(tv));
+		unsigned int i;
+		unsigned int patternLen = ctx->opts.patternLen;
+		unsigned char pattern[256];
+		memcpy(pattern, ctx->opts.pattBytes, patternLen);
+
+		if (patternLen == 0)
+			memset(payload, 0, payloadLen); /* fallback: zero fill */
+		else
+		{
+			/* First, optionally copy timestamp at start */
+			unsigned int tvSize = sizeof(tv);
+			if (payloadLen >= tvSize)
+			{
+				gettimeofday(&tv, NULL);
+				memcpy(payload, &tv, tvSize);
+			}
+
+			/* Fill the rest of payload with repeated pattern */
+			for (i = tvSize; i < payloadLen; i++)
+				payload[i] = pattern[(i - tvSize) % patternLen];
+		}
 	}
 
 	if (ctx->targetAddr.ss_family == AF_INET)
@@ -465,7 +481,6 @@ receiveIcmpReply(
 	return (0);
 }
 
-/* keep your pingLoopInit - it's already fine; ensure it calls timevalFromDouble etc. */
 static void
 pingLoopInit(
 	tPingContext	*ctx,
@@ -480,10 +495,15 @@ pingLoopInit(
 	*userPayload = computeUserPayloadSize(&ctx->opts);
 	*onWireHeader = ICMP4_HDR_LEN; /* ICMP header on-wire (8) - printing will add user payload */
 
-	printf("PING %s (%s): %u data bytes\n",
+	printf(PROG_NAME " %s (%s): %u data bytes",
 		ctx->targetHost,
 		ctx->resolvedIp,
 		*userPayload);
+	
+	if (ctx->opts.verbose > 0)
+		printf(", id 0x%04x = %u", ctx->pid, ctx->pid);
+
+	putchar('\n');
 
 	fcntl(ctx->sock.fd, F_SETFL, O_NONBLOCK);
 	signal(SIGINT, handleSigInt);
@@ -505,12 +525,83 @@ pingLoopInit(
 	ctx->stats.rttSum = 0.0;
 }
 
-/* run the ping loop */
+/**
+ * @brief Handle linger after sending all packets: wait for remaining replies until linger timeout expires
+ * @param ctx - ping context
+ * @param sentCount - number of packets sent
+ * @param onWireHeader - size of ICMP header on the wire (without user payload)
+ * @param userPayload - size of user payload in bytes
+ */
+static void
+handleLinger(tPingContext *ctx,
+			 unsigned int sentCount,
+			 unsigned int onWireHeader,
+			 uint32_t userPayload)
+{
+	if (!ctx || ctx->opts.linger <= 0 || sentCount == 0)
+		return;
+
+	fd_set fdset;
+	struct timeval lingerTv, startTv, nowTv;
+	unsigned char buf[PING_MAX_PACKET_SIZE];
+
+	gettimeofday(&startTv, NULL);
+
+	while (!g_pingInterrupted)
+	{
+		/* Check if all sent packets are already received */
+		if (ctx->stats.received >= sentCount)
+			break;
+
+		/* Compute remaining linger time */
+		gettimeofday(&nowTv, NULL);
+		long elapsedUs = (nowTv.tv_sec - startTv.tv_sec) * 1000000L
+					   + (nowTv.tv_usec - startTv.tv_usec);
+		long remainingUs = ctx->opts.linger * 1000000L - elapsedUs;
+		if (remainingUs <= 0)
+			break;
+
+		lingerTv.tv_sec  = remainingUs / 1000000L;
+		lingerTv.tv_usec = remainingUs % 1000000L;
+
+		FD_ZERO(&fdset);
+		FD_SET(ctx->sock.fd, &fdset);
+
+		int sel = select(ctx->sock.fd + 1, &fdset, NULL, NULL, &lingerTv);
+		if (sel < 0)
+		{
+			if (errno != EINTR)
+				fprintf(stderr, "select failed during linger: %s\n", strerror(errno));
+			break;
+		}
+		else if (sel == 0)
+			break;	/* timeout expired, stop linger */
+
+		if (FD_ISSET(ctx->sock.fd, &fdset))
+		{
+			tIcmpReplyInfo replyInfo;
+			if (receiveIcmpReply(ctx, buf, sizeof(buf), &replyInfo, NULL) != 0)
+				continue;
+
+			double ms = 0.0;
+			if (userPayload >= sizeof(struct timeval) &&
+					(replyInfo.rtt.tv_sec != 0 || replyInfo.rtt.tv_usec != 0))
+				ms = replyInfo.rtt.tv_sec * 1000.0
+				   + replyInfo.rtt.tv_usec / 1000.0;
+
+			unsigned int replyBytes = onWireHeader + userPayload;
+			if (!ctx->opts.flood)
+				printf("%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms\n",
+					   replyBytes, ctx->resolvedIp, replyInfo.seq, replyInfo.ttl, ms);
+		}
+	}
+}
+
 void
 runPingLoop(tPingContext *ctx)
 {
 	fd_set			fdset;
-	struct timeval	lastSend, interval, now, respTime;
+	struct timeval	lastSend, interval, now, respTime, startTime;
 	unsigned char	buf[PING_MAX_PACKET_SIZE];
 	unsigned int	sentCount = 0;
 	uint32_t		userPayload;
@@ -522,12 +613,24 @@ runPingLoop(tPingContext *ctx)
 	/* call initialization */
 	pingLoopInit(ctx, &lastSend, &interval, &userPayload, &onWireHeader);
 
+	/* save start time for -w / --timeout */
+	gettimeofday(&startTime, NULL);
+
 	while (!g_pingInterrupted &&
 		   (ctx->opts.count == 0 || sentCount < ctx->opts.count))
 	{
+		/* check -w / --timeout */
+		gettimeofday(&now, NULL);
+		if (ctx->opts.timeout > 0 &&
+			(now.tv_sec - startTime.tv_sec) >= ctx->opts.timeout)
+			break;
+
 		/* send one packet */
 		if (sendIcmpPacket(ctx) == 0)
+		{
 			sentCount++;
+			gettimeofday(&lastSend, NULL); // mise à jour timing précis
+		}
 
 		/* wait for replies until next interval */
 		while (!g_pingInterrupted)
@@ -536,6 +639,7 @@ runPingLoop(tPingContext *ctx)
 			FD_SET(ctx->sock.fd, &fdset);
 
 			gettimeofday(&now, NULL);
+			/* compute remaining time until next send */
 			respTime.tv_sec  = lastSend.tv_sec  + interval.tv_sec  - now.tv_sec;
 			respTime.tv_usec = lastSend.tv_usec + interval.tv_usec - now.tv_usec;
 			normalizeTimeval(&respTime);
@@ -562,6 +666,7 @@ runPingLoop(tPingContext *ctx)
 
 				if (receiveIcmpReply(ctx, buf, sizeof(buf), &replyInfo, &ipHdr) != 0)
 					continue;
+
 				haveRtt = (userPayload >= sizeof(struct timeval) &&
 						   (replyInfo.rtt.tv_sec != 0 || replyInfo.rtt.tv_usec != 0));
 
@@ -582,38 +687,51 @@ runPingLoop(tPingContext *ctx)
 
 				replyBytes = onWireHeader + userPayload;
 
+				if (!ctx->opts.flood)
+				{
 #if defined(HAJ)
-				printf("%u bytes from %s (%s): icmp_seq=%u ttl=%u",
-					   replyBytes,
-					   ctx->resolvedIp,
-					   ctx->canonicalName,
-					   replyInfo.seq,
-					   replyInfo.ttl);
-#else
-				printf("%u bytes from %s: icmp_seq=%u ttl=%u",
-						   replyBytes,
-						   ctx->resolvedIp,
-						   replyInfo.seq,
-						   replyInfo.ttl);
+					if (!ctx->opts.numeric)
+						printf("%u bytes from %s (%s): icmp_seq=%u ttl=%u",
+							   replyBytes,
+							   ctx->resolvedIp,
+							   ctx->canonicalName,
+							   replyInfo.seq,
+							   replyInfo.ttl);
+					else
 #endif
+						printf("%u bytes from %s: icmp_seq=%u ttl=%u",
+							   replyBytes,
+							   ctx->resolvedIp,
+							   replyInfo.seq,
+							   replyInfo.ttl);
+					if (haveRtt)
+						printf(" time=%.3f ms", ms);
 
-				if (haveRtt)
-					printf(" time=%.3f ms", ms);
-
-				printf("\n");
-
+					printf("\n");
+				}
 				if (ipHdr)
 					printIp4Timestamps((tIpHdr *)ipHdr);
 
 				if (ctx->opts.timestamp && replyInfo.type == ICMP4_TIMESTAMP_REPLY)
 					printIcmpv4TimestampReply((const tIcmp4Echo *)buf);
-
 			}
 		}
 
-		gettimeofday(&lastSend, NULL);
 		ctx->seq++;
+
+		/* recalc interval for next send */
+		double iv = ctx->opts.interval;
+		if (ctx->opts.flood && iv <= 0.0)
+			iv = 0.01;
+		else if (iv <= 0.0)
+			iv = PING_DEFAULT_INTERVAL;
+		timevalFromDouble(&interval, iv);
+		normalizeTimeval(&interval);
 	}
+
+	/* handle -W / --linger */
+	if (ctx->opts.linger > 0)
+		handleLinger(ctx, sentCount, onWireHeader, userPayload);
 
 	printPingSummary(ctx);
 }

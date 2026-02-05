@@ -107,20 +107,12 @@ socketApplyCommonOptions(
 	tPingSocket			*ctx,
 	const tPingOptions	*opts)
 {
-	int	value;
-
 	if (!ctx || !opts)
 		return (-1);
 	if (opts->debug)
 		setsockopt(ctx->fd, SOL_SOCKET, SO_DEBUG, &(int){1}, sizeof(int));
 	if (opts->ignRouting)
 		setsockopt(ctx->fd, SOL_SOCKET, SO_DONTROUTE, &(int){1}, sizeof(int));
-	if (opts->linger >= 0)
-	{
-		value = opts->linger;
-		setsockopt(ctx->fd, SOL_SOCKET, SO_LINGER,
-			&(struct linger){1, value}, sizeof(struct linger));
-	}
 	return (0);
 }
 

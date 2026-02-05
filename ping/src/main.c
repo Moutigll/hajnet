@@ -143,6 +143,12 @@ main(int argc, char **argv)
 		return (EXIT_MISSING_HOST);
 	}
 
+	if (parseRes.options.flood && parseRes.options.interval != 0.0)
+	{
+		fprintf(stderr, "%s: -f and -i incompatible options\n", argv[0]);
+		return (EXIT_FAILURE);
+	}
+
 	for (i = 0; i < parseRes.posCount; i++)
 	{
 		const char					*host;
