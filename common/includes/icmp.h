@@ -418,18 +418,36 @@ const tIcmp6Hdr *icmp6ParseHeader(const void *data, uint32_t len);
 /* ----------------- ICMP Print Functions ----------------- */
 
 /**
- * @brief Print ICMPv4 header
+ * @brief Print ICMPv4 header details in a human-readable format
+ * @param hdr - pointer to ICMPv4 header structure
  */
 void printIcmp4Header(const tIcmp4Hdr *hdr);
 
 /**
- * @brief Print ICMPv4 packet
+ * @brief Print ICMPv4 packet details in a human-readable format
+ * @param pkt - pointer to the raw ICMPv4 packet data
+ * @param len - length of the packet data in bytes
  */
 void printIcmp4Packet(const void *pkt, uint32_t len);
 
 /**
- * @brief Print ICMPv6 header
+ * @brief Print ICMPv6 header details in a human-readable format
+ * @param hdr - pointer to ICMPv6 header structure
  */
 void printIcmp6Header(const tIcmp6Hdr *hdr);
 
+/**
+ * @brief Print ICMPv6 packet
+ * @param type - ICMPv4 type
+ * @return string representation of the type, or "Unknown" if not recognized
+ */
+const char *icmp4TypeName(uint8_t type);
+
+/**
+ * @brief Get string representation of ICMPv4 code for a given type
+ * @param type - ICMPv4 type
+ * @param code - ICMPv4 code
+ * @return string representation of the code, or "Unknown" if not recognized
+ */
+const char *icmp4CodeName(uint8_t type, uint8_t code);
 #endif /* HAJ_ICMP_H */

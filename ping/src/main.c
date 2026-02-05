@@ -94,6 +94,8 @@ setupPingSocket(
 			   opts->address ? PING_SOCKET_ADDRESS : PING_SOCKET_ECHO,
 			   sockCtx->privilege);
 
+	sockCtx->targetAddr = *target;
+
 	ret = pingSocketCreate(sockCtx);
 	if (ret != 0)
 		return (-1);

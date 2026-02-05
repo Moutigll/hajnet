@@ -1,6 +1,8 @@
 #ifndef HAJPING_SOCKET_H
 # define HAJPING_SOCKET_H
 
+#include <sys/socket.h>
+
 # include "parser.h"
 
 /**
@@ -34,14 +36,16 @@ typedef enum ePingSocketType
  * - protocol: socket protocol (IPPROTO_ICMP / IPPROTO_ICMPV6)
  * - privilege: detected privilege level
  * - type: ICMP packet type handled by the socket
+ * - targetAddr: target address for connected DGRAM sockets
  */
 typedef struct sPingSocket
 {
-	int					fd;
-	int					family;
-	int					protocol;
-	tSocketPrivilege	privilege;
-	tPingSocketType		type;
+	int						fd;
+	int						family;
+	int						protocol;
+	tSocketPrivilege		privilege;
+	tPingSocketType			type;
+	struct sockaddr_storage	targetAddr;
 } tPingSocket;
 
 /**

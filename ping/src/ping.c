@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 
 #include "../includes/ping.h"
@@ -51,26 +52,32 @@ sendIcmpPacket(tPingContext *ctx)
 
 	if (payloadLen > 0)
 	{
-		unsigned int i;
-		unsigned int patternLen = ctx->opts.patternLen;
-		unsigned char pattern[256];
-		memcpy(pattern, ctx->opts.pattBytes, patternLen);
+		unsigned int	i;
+		unsigned int	tvSize;
+		unsigned int	patternLen;
+		unsigned char	pattern[256];
 
-		if (patternLen == 0)
-			memset(payload, 0, payloadLen); /* fallback: zero fill */
-		else
+		tvSize = sizeof(tv);
+		patternLen = ctx->opts.patternLen;
+
+		if (payloadLen >= tvSize)
 		{
-			/* First, optionally copy timestamp at start */
-			unsigned int tvSize = sizeof(tv);
-			if (payloadLen >= tvSize)
-			{
-				gettimeofday(&tv, NULL);
-				memcpy(payload, &tv, tvSize);
-			}
+			gettimeofday(&tv, NULL);
+			memcpy(payload, &tv, tvSize);
+		}
+		else
+			tvSize = 0;
 
-			/* Fill the rest of payload with repeated pattern */
+		if (patternLen > 0)
+		{
+			memcpy(pattern, ctx->opts.pattBytes, patternLen);
 			for (i = tvSize; i < payloadLen; i++)
 				payload[i] = pattern[(i - tvSize) % patternLen];
+		}
+		else
+		{
+			for (i = tvSize; i < payloadLen; i++)
+				payload[i] = 0;
 		}
 	}
 
@@ -141,12 +148,21 @@ sendIcmpPacket(tPingContext *ctx)
 		return (-1);
 
 	/* send (works for RAW and DGRAM when target provided) */
-	sent = sendto(ctx->sock.fd,
-					packet,
-					packetLen,
-					0,
-					(struct sockaddr *)&ctx->targetAddr,
-					ctx->addrLen);
+	if (ctx->sock.privilege == SOCKET_PRIV_USER)
+	{
+		/* socket DGRAM connecté → utiliser send() pour que le kernel
+		 * associe correctement les erreurs ICMP à ce socket */
+		sent = send(ctx->sock.fd, packet, packetLen, 0);
+	}
+	else
+	{
+		sent = sendto(ctx->sock.fd,
+						packet,
+						packetLen,
+						0,
+						(struct sockaddr *)&ctx->targetAddr,
+						ctx->addrLen);
+	}
 	if (sent < 0)
 	{
 		if (ctx->opts.verbose > 1)
@@ -204,6 +220,10 @@ recvIcmpDgram(
 	msg.msg_controllen	= sizeof(cmsgbuf);
 
 	n = recvmsg(ctx->sock.fd, &msg, 0);
+#if defined (HAJ)
+	if (ctx->opts.verbose > 0)
+		checkIcmpErrorQueue(ctx->sock.fd, ctx->opts.numeric);
+#endif
 	if (n <= 0)
 		return (-1);
 
@@ -277,6 +297,7 @@ recvIcmpRaw(tPingContext *ctx,
 	msg.msg_controllen = sizeof(cmsgbuf);
 
 	n = recvmsg(ctx->sock.fd, &msg, 0);
+	printf("recvmsg returned %zd\n", n);
 	if (n <= 0)
 		return (-1);
 
@@ -329,7 +350,7 @@ validateIcmpReply(
 	if (!ctx || !icmp || !from || !seqOut)
 		return (-1);
 
-/* require at least ICMP header size */
+	/* require at least ICMP header size */
 	if (ctx->targetAddr.ss_family == AF_INET)
 	{
 		if (icmpLen < ICMP4_HDR_LEN)
@@ -337,7 +358,40 @@ validateIcmpReply(
 		/* only consider IPv4 Echo Reply */
 		if (icmp[0] != ICMP4_ECHO_REPLY &&
 			!(ctx->opts.timestamp && icmp[0] == ICMP4_TIMESTAMP_REPLY))
+		{
+			if (ctx->opts.verbose > 0)
+			{
+				printInvalidIcmpError(from, icmp, icmpLen, ctx->opts.numeric);
+#ifndef HAJ
+				const unsigned char *ip = icmp - 20; /* ICMP starts after IP header */
+				if (icmpLen >= 28) /* minimal IPv4 header + ICMP header */
+				{
+					printf("IP Hdr Dump:\n");
+					for (size_t i = 0; i < 20; i += 2)
+						printf("%02x%02x ", ip[i], ip[i+1]);
+					printf("\n");
+
+					printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src\tDst\tData\n");
+					printf("%u  %u  %02x %04x %04x   %u %04x  %02x  %02x %04x ",
+						(ip[0] >> 4), (ip[0] & 0x0F), ip[1],
+						(ip[2] << 8) | ip[3], (ip[4] << 8) | ip[5],
+						(ip[6] >> 5), ((ip[6] & 0x1F) << 8) | ip[7],
+						ip[8], ip[9], (ip[10] << 8) | ip[11]);
+					printf("%u.%u.%u.%u\t%u.%u.%u.%u\n",
+						ip[12], ip[13], ip[14], ip[15],
+						ip[16], ip[17], ip[18], ip[19]);
+				}
+
+				/* print ICMP info */
+				printf("ICMP: type %u, code %u, size %zu, id 0x%04x, seq 0x%04x\n",
+					icmp[0], icmp[1], icmpLen,
+					(uint16_t)((icmp[4] << 8) | icmp[5]),
+					(uint16_t)((icmp[6] << 8) | icmp[7])
+				);
+#endif
+			}
 			return (-1);
+		}
 
 	}
 #if defined(AF_INET6)
@@ -347,7 +401,11 @@ validateIcmpReply(
 			return (-1);
 		/* only consider IPv6 Echo Reply */
 		if (icmp[0] != ICMP6_ECHO_REPLY)
+		{
+			if (ctx->opts.verbose > 0)
+				printInvalidIcmpError(from, icmp, icmpLen, ctx->opts.numeric);
 			return (-1);
+		}
 	}
 #endif
 
@@ -606,6 +664,7 @@ runPingLoop(tPingContext *ctx)
 	unsigned int	sentCount = 0;
 	uint32_t		userPayload;
 	uint32_t		onWireHeader;
+	char			oldRoute[512];
 
 	if (!ctx)
 		return;
@@ -615,6 +674,30 @@ runPingLoop(tPingContext *ctx)
 
 	/* save start time for -w / --timeout */
 	gettimeofday(&startTime, NULL);
+
+	/* handle -l / --preload */
+	if (ctx->opts.preload > 0)
+	{
+		unsigned int i = 0;
+		unsigned int max;
+
+		if (ctx->opts.count > 0 && ctx->opts.preload > ctx->opts.count)
+			max = ctx->opts.count;
+		else
+			max = ctx->opts.preload;
+
+		while (i < max && !g_pingInterrupted)
+		{
+			if (sendIcmpPacket(ctx) == 0)
+			{
+				sentCount++;
+				ctx->seq++;
+			}
+			i++;
+		}
+
+		gettimeofday(&lastSend, NULL);
+	}
 
 	while (!g_pingInterrupted &&
 		   (ctx->opts.count == 0 || sentCount < ctx->opts.count))
@@ -654,9 +737,10 @@ runPingLoop(tPingContext *ctx)
 					exit(EXIT_FAILURE);
 				}
 			}
-			else if (sel == 0)
+
+			if (sel == 0)
 				break; /* timeout, send next packet */
-			else if (FD_ISSET(ctx->sock.fd, &fdset))
+			if (FD_ISSET(ctx->sock.fd, &fdset))
 			{
 				tIcmpReplyInfo	replyInfo;
 				double			ms;
@@ -687,7 +771,7 @@ runPingLoop(tPingContext *ctx)
 
 				replyBytes = onWireHeader + userPayload;
 
-				if (!ctx->opts.flood)
+				if (!ctx->opts.flood && !ctx->opts.quiet)
 				{
 #if defined(HAJ)
 					if (!ctx->opts.numeric)
@@ -707,13 +791,29 @@ runPingLoop(tPingContext *ctx)
 					if (haveRtt)
 						printf(" time=%.3f ms", ms);
 
-					printf("\n");
 				}
 				if (ipHdr)
+				{
+					char	currRoute[512];
+					size_t routeLen = formatIp4Route((tIpHdr *)ipHdr, currRoute, sizeof(currRoute));
+					if (routeLen > 0)
+					{
+						if (strcmp(currRoute, oldRoute) != 0)
+						{
+							printf("\n%s\n", currRoute);
+							strncpy(oldRoute, currRoute, sizeof(oldRoute));
+						}
+						else
+							printf("\t (same route)\n");
+					} else
+						putchar('\n');
 					printIp4Timestamps((tIpHdr *)ipHdr);
+				} else
+					putchar('\n');
 
 				if (ctx->opts.timestamp && replyInfo.type == ICMP4_TIMESTAMP_REPLY)
 					printIcmpv4TimestampReply((const tIcmp4Echo *)buf);
+				fflush(stdout);
 			}
 		}
 

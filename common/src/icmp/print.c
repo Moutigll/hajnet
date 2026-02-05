@@ -16,9 +16,8 @@ Oct - Bits 0                       1                      2                     
 #define ICMP4_ROW_SEPARATOR " ├───────────────────────┼───────────────────────┼─────────────────────────────────────────────┤\n"
 
 /* -------------------- Type / Code Name -------------------- */
-
-static const char *
-icmp4TypeName(uint8_t type)
+const char
+*icmp4TypeName(uint8_t type)
 {
 	switch (type)
 	{
@@ -31,8 +30,8 @@ icmp4TypeName(uint8_t type)
 	}
 }
 
-static const char *
-icmp4CodeName(uint8_t type, uint8_t code)
+const char
+*icmp4CodeName(uint8_t type, uint8_t code)
 {
 	if (type == ICMP4_DEST_UNREACH)
 	{
@@ -48,7 +47,7 @@ icmp4CodeName(uint8_t type, uint8_t code)
 	{
 		switch (code)
 		{
-			case ICMP4_TTL_EXCEEDED:	return "TTL Exceeded";
+			case ICMP4_TTL_EXCEEDED:	return "Time to live Exceeded";
 			default:					return "Unknown TE";
 		}
 	}

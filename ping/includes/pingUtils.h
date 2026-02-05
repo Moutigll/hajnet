@@ -46,4 +46,28 @@ void printIcmpv4TimestampReply(const tIcmp4Echo *ts);
  */
 void printIp4Timestamps(tIpHdr *hdr);
 
+/**
+ * @brief Print IPv4 Record Route option from the header
+ * @param hdr - pointer to IPv4 header structure containing options
+ */
+size_t formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize);
+
+/**
+ * @brief Print details of an invalid ICMP error message (e.g., unexpected type/code)
+ * @param from - source address of the ICMP error
+ * @param icmp - pointer to the ICMP packet that caused the error
+ * @param icmpLen - length of the ICMP packet
+ */
+void printInvalidIcmpError(
+	const struct sockaddr_storage *from,
+	const unsigned char *icmp,
+	size_t icmpLen,
+	tBool numeric);
+
+/**
+ * @brief Check for ICMP errors in the socket's error queue and print details
+ * @param sock - socket file descriptor to check for errors
+ */
+void checkIcmpErrorQueue(int sock, tBool numeric);
+
 #endif /* HAJ_PING_UTILS_H */
