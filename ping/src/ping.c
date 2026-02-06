@@ -389,7 +389,7 @@ validateIcmpReply(
 						printf("%02x%02x ", ip[i], ip[i+1]);
 					printf("\n");
 
-					printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src\tDst\tData\n");
+					printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks	  Src\tDst\tData\n");
 					printf("%u  %u  %02x %04x %04x   %u %04x  %02x  %02x %04x ",
 						(ip[0] >> 4), (ip[0] & 0x0F), ip[1],
 						(ip[2] << 8) | ip[3], (ip[4] << 8) | ip[5],
@@ -594,7 +594,6 @@ pingLoopInit(
 
 	putchar('\n');
 
-	fcntl(ctx->sock.fd, F_SETFL, O_NONBLOCK);
 	signal(SIGINT, handleSigInt);
 
 	double iv = ctx->opts.interval;
@@ -664,10 +663,12 @@ handleLinger(tPingContext *ctx,
 		int sel = select(ctx->sock.fd + 1, &fdset, NULL, NULL, &lingerTv);
 		if (sel < 0)
 		{
-			if (errno != EINTR)
-				fprintf(stderr, "select failed during linger: %s\n", strerror(errno));
-			break;
+			if (errno == EINTR)
+				break;
+			fprintf(stderr, "select failed: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
 		}
+
 		else if (sel == 0)
 			break;	/* timeout expired, stop linger */
 
@@ -767,12 +768,12 @@ runPingLoop(tPingContext *ctx)
 			int sel = select(ctx->sock.fd + 1, &fdset, NULL, NULL, &respTime);
 			if (sel < 0)
 			{
-				if (errno != EINTR)
-				{
-					fprintf(stderr, "select failed: %s\n", strerror(errno));
-					exit(EXIT_FAILURE);
-				}
+				if (errno == EINTR)	/* interrupted by signal, exit gracefully */
+					break;
+				fprintf(stderr, "select failed: %s\n", strerror(errno));
+				exit(EXIT_FAILURE);
 			}
+
 
 			if (ctx->targetAddr.ss_family == AF_INET6 &&
 				ctx->sock.privilege == SOCKET_PRIV_USER)
