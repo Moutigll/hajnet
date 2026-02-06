@@ -83,7 +83,7 @@ printIcmpv4TimestampReply(const tIcmp4Echo *ts)
 }
 
 void
-printIp4Timestamps(tIpHdr *hdr)
+printIp4Timestamps(tIpHdr *hdr, tBool numeric)
 {
 	if (!hdr)
 		return;
@@ -100,7 +100,7 @@ printIp4Timestamps(tIpHdr *hdr)
 			continue;
 
 		unsigned char flags = data[1];
-		size_t payloadLen = (len >= 2) ? (len - 2) : 0;
+		size_t payloadLen = len - 2;
 		const unsigned char *payload = data + 2;
 
 		int printedAny = 0;
@@ -112,6 +112,7 @@ printIp4Timestamps(tIpHdr *hdr)
 				uint32_t raw;
 				memcpy(&raw, payload + off, 4);
 				raw = ntohl(raw);
+
 				if (raw == 0)
 					continue;
 
@@ -124,38 +125,50 @@ printIp4Timestamps(tIpHdr *hdr)
 					printf("\n\t%u", raw);
 			}
 		}
-		else if ((flags & 0xF) == IP_OPT_TS_TSANDADDR || (flags & 0xF) == IP_OPT_TS_PRESPEC)
+		else if ((flags & 0xF) == IP_OPT_TS_TSANDADDR
+		      || (flags & 0xF) == IP_OPT_TS_PRESPEC)
 		{
 			for (size_t off = 8; off + 8 <= payloadLen; off += 8)
 			{
-				struct in_addr a;
+				struct in_addr addr;
 				uint32_t raw;
-				memcpy(&a.s_addr, payload + off, 4);
+
+				memcpy(&addr.s_addr, payload + off, 4);
 				memcpy(&raw, payload + off + 4, 4);
 				raw = ntohl(raw);
-				if (a.s_addr == 0 && raw == 0)
+
+				if (addr.s_addr == 0 && raw == 0)
 					continue;
 
 				char ipbuf[INET_ADDRSTRLEN];
-				if (!inet_ntop(AF_INET, &a, ipbuf, sizeof(ipbuf)))
-					snprintf(ipbuf, sizeof(ipbuf), "??");
+				inet_ntop(AF_INET, &addr, ipbuf, sizeof(ipbuf));
 
-				struct sockaddr_in sa = {0};
-				sa.sin_family = AF_INET;
-				sa.sin_addr = a;
-
+				const char *host = ipbuf;
 				char revDns[NI_MAXHOST];
-				if (resolvePeerName((struct sockaddr_storage *)&sa, sizeof(sa),
-				                    NULL, revDns, sizeof(revDns)) != 0)
-					snprintf(revDns, sizeof(revDns), "%s", ipbuf);
+
+				if (!numeric)
+				{
+					struct sockaddr_in sa;
+
+					memset(&sa, 0, sizeof(sa));
+					sa.sin_family = AF_INET;
+					sa.sin_addr = addr;
+
+					if (resolvePeerName((struct sockaddr_storage *)&sa,
+					                    sizeof(sa),
+					                    NULL,
+					                    revDns,
+					                    sizeof(revDns)) == 0)
+						host = revDns;
+				}
 
 				if (!printedAny)
 				{
-					printf("TS:\t%s (%s)\t%u", revDns, ipbuf, raw);
+					printf("TS:\t%s (%s)\t%u", host, ipbuf, raw);
 					printedAny = 1;
 				}
 				else
-					printf("\n\t%s (%s)\t%u", revDns, ipbuf, raw);
+					printf("\n\t%s (%s)\t%u", host, ipbuf, raw);
 			}
 		}
 
@@ -167,70 +180,76 @@ printIp4Timestamps(tIpHdr *hdr)
 }
 
 size_t
-formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize)
+formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize, tBool numeric)
 {
 	if (!hdr || !buf || bufSize == 0)
-		return 0;
+		return (0);
 
 	buf[0] = '\0';
 	size_t totalLen = 0;
 
-	for (int i = 0; i < 10; ++i)
+	for (int i = 0; i < 10; i++)
 	{
 		if (hdr->options[i].type != IPOPT_RR)
 			continue;
 
 		unsigned char *data = hdr->options[i].data;
 		size_t len = hdr->options[i].length;
+
 		if (len < 3)
-			continue;
+			return (0);
 
-		size_t payloadLen = len - 3;
-		const unsigned char *payload = data + 3;
+		unsigned char pointer = data[0];
+		size_t filled = 0;
 
+		if (pointer > 4)
+			filled = pointer - 4;
+
+		unsigned char *payload = data + 1;
 		int first = 1;
-		char prevHost[INET_ADDRSTRLEN] = "";
 
-		for (size_t off = 0; off + 4 <= payloadLen; off += 4)
+		for (size_t off = 0; off + 4 <= filled; off += 4)
 		{
-			uint32_t raw;
-			memcpy(&raw, payload + off, 4);
-			if (raw == 0)
+			struct in_addr addr;
+			memcpy(&addr.s_addr, payload + off, 4);
+
+			if (addr.s_addr == 0)
 				continue;
 
-			struct in_addr a;
-			a.s_addr = raw;
-
 			char ipbuf[INET_ADDRSTRLEN];
-			if (!inet_ntop(AF_INET, &a, ipbuf, sizeof(ipbuf)))
-				snprintf(ipbuf, sizeof(ipbuf), "??");
+			inet_ntop(AF_INET, &addr, ipbuf, sizeof(ipbuf));
 
-			struct sockaddr_in sa = {0};
-			sa.sin_family = AF_INET;
-			sa.sin_addr = a;
-
+			const char *host = ipbuf;
 			char revDns[NI_MAXHOST];
-			if (resolvePeerName((struct sockaddr_storage *)&sa, sizeof(sa),
-			                    NULL, revDns, sizeof(revDns)) != 0)
-				snprintf(revDns, sizeof(revDns), "%s", ipbuf);
+
+			if (!numeric)
+			{
+				struct sockaddr_in sa;
+
+				memset(&sa, 0, sizeof(sa));
+				sa.sin_family = AF_INET;
+				sa.sin_addr = addr;
+
+				if (resolvePeerName((struct sockaddr_storage *)&sa,
+				                    sizeof(sa),
+				                    NULL,
+				                    revDns,
+				                    sizeof(revDns)) == 0)
+					host = revDns;
+			}
 
 			char line[128];
+
 			if (first)
 			{
-				snprintf(line, sizeof(line), "RR:\t%.31s (%.15s)", revDns, ipbuf);
+				snprintf(line, sizeof(line),
+				         "RR:\t%.31s (%.15s)", host, ipbuf);
 				first = 0;
 			}
 			else
-			{
-#if defined(HAJ)
-				if (strcmp(prevHost, revDns) == 0)
-					snprintf(line, sizeof(line), "\n\t (same route)");
-				else
-#endif
-					snprintf(line, sizeof(line), "\n\t%.31s (%.15s)", revDns, ipbuf);
-			}
+				snprintf(line, sizeof(line),
+				         "\n\t%.31s (%.15s)", host, ipbuf);
 
-			strncpy(prevHost, revDns, sizeof(prevHost));
 			size_t lineLen = strlen(line);
 			if (totalLen + lineLen + 1 >= bufSize)
 				break;
@@ -239,10 +258,10 @@ formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize)
 			totalLen += lineLen;
 		}
 
-		break; // only first RR option
+		break;
 	}
 
-	return totalLen;
+	return (totalLen);
 }
 
 void

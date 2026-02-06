@@ -180,12 +180,8 @@ main(int argc, char **argv)
 						  ipMode);
 		if (ret != 0)
 		{
-			fprintf(stderr,
-					"%s: %s\n",
-					argv[0],
-					parseRes.options.verbose ?
-					gai_strerror(ret) : "unknown host");
-			continue;
+			fprintf(stderr, "%s: unknown host\n", argv[0]);
+			exit(EXIT_FAILURE);
 		}
 
 		if (parseRes.options.verbose > 1)
@@ -198,7 +194,7 @@ main(int argc, char **argv)
 							&targetAddr) != 0)
 		{
 			freeaddrinfo(addrList);
-			continue;
+			exit(EXIT_FAILURE);
 		}
 
 		memset(&ctx, 0, sizeof(ctx));

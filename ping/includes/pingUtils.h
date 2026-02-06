@@ -44,20 +44,26 @@ void printIcmpv4TimestampReply(const tIcmp4Echo *ts);
 /**
  * @brief Print IPv4 timestamp options from the header
  * @param hdr - pointer to IPv4 header structure containing options
+ * @param numeric - whether to print in numeric format (no DNS resolution)
  */
-void printIp4Timestamps(tIpHdr *hdr);
+void printIp4Timestamps(tIpHdr *hdr, tBool numeric);
 
 /**
  * @brief Print IPv4 Record Route option from the header
  * @param hdr - pointer to IPv4 header structure containing options
+ * @param buf - buffer to write the formatted route string
+ * @param bufSize - size of the buffer
+ * @param numeric - whether to print in numeric format (no DNS resolution)
+ * @return length of the formatted route string
  */
-size_t formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize);
+size_t formatIp4Route(tIpHdr *hdr, char *buf, size_t bufSize, tBool numeric);
 
 /**
  * @brief Print details of an invalid ICMP error message (e.g., unexpected type/code)
  * @param from - source address of the ICMP error
  * @param icmp - pointer to the ICMP packet that caused the error
  * @param icmpLen - length of the ICMP packet
+ * @param numeric - whether to print in numeric format (no DNS resolution)
  */
 void printInvalidIcmpError(
 	const struct sockaddr_storage *from,
@@ -68,6 +74,7 @@ void printInvalidIcmpError(
 /**
  * @brief Check for ICMP errors in the socket's error queue and print details
  * @param sock - socket file descriptor to check for errors
+ * @param numeric - whether to print in numeric format (no DNS resolution)
  */
 void checkIcmpErrorQueue(int sock, tBool numeric);
 

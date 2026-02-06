@@ -58,7 +58,7 @@ static const tFtLongOption g_longOptions[] = {
 	{"debug",			FT_GETOPT_NO_ARGUMENT,		 OPT_DEBUG},
 	{"interval", 		FT_GETOPT_REQUIRED_ARGUMENT,	 OPT_INTERVAL},
 	{"numeric",			FT_GETOPT_NO_ARGUMENT,		 OPT_NUMERIC},
-	{"ignrouting",		FT_GETOPT_NO_ARGUMENT,		 OPT_IGNROUTING},
+	{"ignore-routing",		FT_GETOPT_NO_ARGUMENT,		 OPT_IGNROUTING},
 	{"ttl",				FT_GETOPT_REQUIRED_ARGUMENT,	 OPT_TTL},
 	{"tos",				FT_GETOPT_REQUIRED_ARGUMENT,	 OPT_TOS},
 	{"verbose",			FT_GETOPT_NO_ARGUMENT,		 OPT_VERBOSE},

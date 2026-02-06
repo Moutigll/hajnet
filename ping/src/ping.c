@@ -577,11 +577,18 @@ pingLoopInit(
 	*userPayload = computeUserPayloadSize(&ctx->opts);
 	*onWireHeader = ICMP4_HDR_LEN; /* ICMP header on-wire (8) - printing will add user payload */
 
+#if defined(HAJ)
 	printf(PROG_NAME " %s (%s): %u data bytes",
 		ctx->targetHost,
 		ctx->resolvedIp,
 		*userPayload);
-	
+#else
+	printf("PING %s (%s): %u data bytes",
+		ctx->targetHost,
+		ctx->resolvedIp,
+		*userPayload);
+#endif
+
 	if (ctx->opts.verbose > 0)
 		printf(", id 0x%04x = %u", ctx->pid, ctx->pid);
 
@@ -788,11 +795,10 @@ runPingLoop(tPingContext *ctx)
 						   (replyInfo.rtt.tv_sec != 0 || replyInfo.rtt.tv_usec != 0));
 
 				ms = 0.0;
+				ms = replyInfo.rtt.tv_sec * 1000.0
+				   + replyInfo.rtt.tv_usec / 1000.0;
 				if (haveRtt && !ctx->seqReceived[replyInfo.seq])
 				{
-					ms = replyInfo.rtt.tv_sec * 1000.0
-					   + replyInfo.rtt.tv_usec / 1000.0;
-
 					if (ctx->stats.received == 1 || ms < ctx->stats.rttMin)
 						ctx->stats.rttMin = ms;
 					if (ms > ctx->stats.rttMax)
@@ -824,40 +830,37 @@ runPingLoop(tPingContext *ctx)
 					if (haveRtt)
 						printf(" time=%.3f ms", ms);
 
-				}
-
-				if (ctx->seqReceived[replyInfo.seq])
-				{
-					ctx->stats.duplicates++;
-				#if defined(HAJ)
-					printf(" (DUP!)");
-				#endif
-				}
-				else
-					ctx->seqReceived[replyInfo.seq] = TRUE;
-
-				if (ipHdr)
-				{
-					char	currRoute[512];
-					size_t routeLen = formatIp4Route((tIpHdr *)ipHdr, currRoute, sizeof(currRoute));
-					if (routeLen > 0)
+					if (ctx->seqReceived[replyInfo.seq])
 					{
-						if (strcmp(currRoute, oldRoute) != 0)
+						ctx->stats.duplicates++;
+						printf(" (DUP!)");
+					}
+					else
+						ctx->seqReceived[replyInfo.seq] = TRUE;
+
+					if (ipHdr)
+					{
+						char	currRoute[512];
+						size_t routeLen = formatIp4Route((tIpHdr *)ipHdr, currRoute, sizeof(currRoute), ctx->opts.numeric);
+						if (routeLen > 0)
 						{
-							printf("\n%s\n", currRoute);
-							strncpy(oldRoute, currRoute, sizeof(oldRoute));
-						}
-						else
-							printf("\t (same route)\n");
+							if (strcmp(currRoute, oldRoute) != 0)
+							{
+								printf("\n%s\n", currRoute);
+								strncpy(oldRoute, currRoute, sizeof(oldRoute));
+							}
+							else
+								printf("\t (same route)\n");
+						} else
+							putchar('\n');
+						printIp4Timestamps((tIpHdr *)ipHdr, ctx->opts.numeric);
 					} else
 						putchar('\n');
-					printIp4Timestamps((tIpHdr *)ipHdr);
-				} else
-					putchar('\n');
 
-				if (ctx->opts.timestamp && replyInfo.type == ICMP4_TIMESTAMP_REPLY)
-					printIcmpv4TimestampReply((const tIcmp4Echo *)buf);
-				fflush(stdout);
+					if (ctx->opts.timestamp && replyInfo.type == ICMP4_TIMESTAMP_REPLY)
+						printIcmpv4TimestampReply((const tIcmp4Echo *)buf);
+					fflush(stdout);
+				}
 			}
 		}
 
