@@ -1,8 +1,4 @@
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "../../hajlib/include/hajlib.h" /* IWYU pragma: keep */
 
 #include "../../common/includes/ip.h"
 #if defined(HAJ)
@@ -20,14 +16,14 @@ convertNumberOption(
 	char			*endptr;
 	unsigned long	n;
 
-	n = strtoul(optArg, &endptr, 0);
+	n = ft_strtoul(optArg, &endptr, 0);
 
 	if (*endptr != '\0')  // invalid value (ex : "3 4")
-		fprintf(stderr, "%s: invalid value (`%s' near `%s')\n", progName, optArg, endptr);
+		ft_dprintf(STDERR_FILENO, "%s: invalid value (`%s' near `%s')\n", progName, optArg, endptr);
 	else if (n == 0 && !allowZero)  // zero not allowed
-		fprintf(stderr, "%s: option value too small: %s\n", progName, optArg);
+		ft_dprintf(STDERR_FILENO, "%s: option value too small: %s\n", progName, optArg);
 	else if (maxVal != 0 && n > maxVal)  // value too big
-		fprintf(stderr, "%s: option value too big: %s\n", progName, optArg);
+		ft_dprintf(STDERR_FILENO, "%s: option value too big: %s\n", progName, optArg);
 	else // valid value we return it
 		return (n);
 
@@ -51,9 +47,9 @@ patternError(const char *progName, const char *text)
 {
 #if defined(HAJ)
 	(void)progName;
-	fprintf(stderr, PROG_NAME ": error in pattern near %s\n", text);
+	ft_dprintf(STDERR_FILENO, PROG_NAME ": error in pattern near %s\n", text);
 #else
-	fprintf(stderr, "%s: error in pattern near %s\n", progName, text);
+	ft_dprintf(STDERR_FILENO, "%s: error in pattern near %s\n", progName, text);
 #endif
 	exit(EXIT_FAILURE);
 }
@@ -73,7 +69,7 @@ decodePattern(
 		const char *start = text;
 
 		/* skip spaces */
-		while (*text && isspace((unsigned char)*text))
+		while (*text && ft_isspace((unsigned char)*text))
 			text++;
 
 		if (!*text)
@@ -83,7 +79,7 @@ decodePattern(
 		if (hi == -1)
 			patternError(progName, start);
 		int lo = 0;
-		if (*text && !isspace((unsigned char)*text))
+		if (*text && !ft_isspace((unsigned char)*text))
 		{
 			lo = hexCharToInt(*text++);
 			if (lo == -1)
@@ -105,58 +101,37 @@ isRoot(void)
 const char *protoToStr(int proto)
 {
 	if (proto == IP_PROTO_ICMP)
-		return "ICMP";
+		return ("ICMP");
 	else if (proto == IP_PROTO_ICMPV6)
-		return "ICMPv6";
+		return ("ICMPv6");
 	else if (proto == IP_PROTO_UDP)
-		return "UDP";
+		return ("UDP");
 	else if (proto == IP_PROTO_TCP)
-		return "TCP";
+		return ("TCP");
 	else
-		return "UNKNOWN";
+		return ("UNKNOWN");
 }
 
 const char *sockTypeToStr(tPingSocketType type)
 {
 	if (type == PING_SOCKET_ECHO)
-		return "ECHO";
+		return ("ECHO");
 	else if (type == PING_SOCKET_TIMESTAMP)
-		return "TIMESTAMP";
+		return ("TIMESTAMP");
 	else if (type == PING_SOCKET_ADDRESS)
-		return "ADDRESS";
+		return ("ADDRESS");
 	else
-		return "UNKNOWN";
-}
-
-double	ftSqrtNewton(double x)
-{
-	double	current;	/* current approximation */
-	double	previous;	/* previous approximation */
-	double	epsilon;	/* acceptable error margin */
-
-	if (x < 0)	/* invalid input */
-		return (-1);
-	if (x == 0 || x == 1)
-		return (x);
-	epsilon = 0.000001;
-	current = x;
-	previous = 0;
-	while (current - previous > epsilon || previous - current > epsilon)	/* while |current - previous| > epsilon */
-	{
-		previous = current;
-		current = (current + x / current) / 2;	/* y = (y + x/y) / 2 */
-	}
-	return (current);
+		return ("UNKNOWN");
 }
 
 int
 clampInt(int val, int min, int max)
 {
 	if (val < min)
-		return min;
+		return (min);
 	if (val > max)
-		return max;
-	return val;
+		return (max);
+	return (val);
 }
 
 void
@@ -166,7 +141,7 @@ truncateAndMark(
 	const char	*src,
 	size_t		max_len)
 {
-	size_t src_len = strlen(src);
+	size_t src_len = ft_strlen(src);
 
 	if (dest_size == 0)
 		return;
@@ -177,7 +152,7 @@ truncateAndMark(
 		size_t copy_len = src_len;
 		if (copy_len >= dest_size)
 			copy_len = dest_size - 1;
-		memcpy(dest, src, copy_len);
+		ft_memcpy(dest, src, copy_len);
 		dest[copy_len] = '\0';
 		return;
 	}
@@ -188,7 +163,7 @@ truncateAndMark(
 		size_t copy_len = src_len;
 		if (copy_len >= dest_size)
 			copy_len = dest_size - 1;
-		memcpy(dest, src, copy_len);
+		ft_memcpy(dest, src, copy_len);
 		dest[copy_len] = '\0';
 	}
 	else
@@ -209,7 +184,7 @@ truncateAndMark(
 			return;
 		}
 		/* copy copy_len bytes and set last char '.' */
-		memcpy(dest, src, copy_len);
+		ft_memcpy(dest, src, copy_len);
 		dest[copy_len - 1] = '.';
 		dest[copy_len] = '\0';
 	}

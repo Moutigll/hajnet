@@ -1,5 +1,7 @@
 #include <netdb.h>
-#include <string.h>
+
+#include "../../hajlib/include/hmemory.h"
+#include "../../hajlib/include/hstring.h"
 
 #include "../includes/ping.h"
 #include "../includes/resolve.h"
@@ -27,7 +29,7 @@ resolveHost(const char				*host,
 	if (!host || !outAddr || !outLen)
 		return EAI_FAIL;
 
-	memset(&hints, 0, sizeof(hints));
+	ft_bzero(&hints, sizeof(hints));
 	hints.ai_socktype = SOCK_RAW;	// ICMP requires raw socket
 	hints.ai_flags = AI_ADDRCONFIG;	// Only return addresses for configured interfaces
 	hints.ai_flags |= AI_CANONNAME;	// Optional: get canonical name
@@ -75,7 +77,7 @@ resolveHost(const char				*host,
 		return EAI_NONAME; // No usable address found
 	}
 
-	memcpy(outAddr, firstUsable->ai_addr, firstUsable->ai_addrlen);
+	ft_memcpy(outAddr, firstUsable->ai_addr, firstUsable->ai_addrlen);
 	*outLen = firstUsable->ai_addrlen;
 
 	if (outList) // Return the list if requested
@@ -115,7 +117,7 @@ resolvePeerName(
 	/* Fallback to canonical name */
 	if (canonName && canonName[0])
 	{
-		strncpy(out, canonName, outSize - 1);
+		ft_strlcpy(out, canonName, outSize - 1);
 		out[outSize - 1] = '\0';
 		return (0);
 	}

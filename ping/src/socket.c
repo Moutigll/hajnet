@@ -1,11 +1,11 @@
-#include <netinet/in.h>
 #include <netinet/ip.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
+
+#include "../../hajlib/include/hmemory.h"
+#include "../../hajlib/include/hprintf.h"
 
 #include "../includes/socket.h"
 #include "../includes/ping.h"
@@ -28,7 +28,7 @@ socketInit(
 {
 	if (!ctx)
 		return;
-	memset(ctx, 0, sizeof(*ctx));
+	ft_bzero(ctx, sizeof(*ctx));
 	ctx->fd = -1;
 	ctx->family = family;
 	ctx->type = type;
@@ -78,9 +78,9 @@ pingSocketCreate(tPingSocket *ctx)
 			if (ctx->fd < 0)
 			{
 				if (errno == EPERM || errno == EACCES || errno == EPROTONOSUPPORT)
-					fprintf (stderr, PROG_NAME ": Lacking privilege for icmp socket.\n");
+					ft_dprintf(STDERR_FILENO, PROG_NAME ": Lacking privilege for icmp socket.\n");
 				else
-					fprintf (stderr, PROG_NAME ": %s\n", strerror (errno));
+					ft_dprintf(STDERR_FILENO, PROG_NAME ": %s\n", strerror(errno));
 				return (-1);
 			}
 			ctx->privilege = SOCKET_PRIV_USER;
@@ -119,7 +119,7 @@ socketApplyCommonOptions(
 
 static void fatalError(const char *msg)
 {
-	fprintf(stderr, "Fatal error: %s\n", msg);
+	ft_dprintf(STDERR_FILENO, "Fatal error: %s\n", msg);
 	exit(EXIT_FAILURE);
 }
 
@@ -139,7 +139,7 @@ buildIpOptions(const tPingOptions *opts, int privilege, unsigned char *buf, sock
 	if (!opts || !buf || bufSize < 4)
 		return 0;
 
-	memset(buf, 0, bufSize);
+	ft_bzero(buf, bufSize); /* zero out the buffer */
 
 	socklen_t used = 0;
 
@@ -221,7 +221,7 @@ buildIpOptions(const tPingOptions *opts, int privilege, unsigned char *buf, sock
 		if ((unsigned int)bufSize >= 3)
 		{
 			unsigned int rrLen = (bufSize >= desired_rr_len) ? desired_rr_len : (unsigned int)bufSize;
-			memset(buf, 0, bufSize);
+			ft_bzero(buf, bufSize);
 			buf[0] = IPOPT_RR;
 			buf[1] = (unsigned char) rrLen;
 			buf[2] = 4;
@@ -278,14 +278,14 @@ int socketApplyOptions(tPingSocket *ctx, const tPingOptions *opts)
 		{
 			/* For DGRAM sockets, we need to connect to the target to receive ICMP errors related to that target */
 			struct sockaddr_in dst4;
-			memset(&dst4, 0, sizeof(dst4));
+			ft_bzero(&dst4, sizeof(dst4));
 			dst4.sin_family = AF_INET;
 			dst4.sin_addr = ((struct sockaddr_in *)&ctx->targetAddr)->sin_addr;
 			dst4.sin_port = 0;
 
 			if (connect(ctx->fd, (struct sockaddr *)&dst4, sizeof(dst4)) < 0)
 			{
-				perror("connect ICMP DGRAM");
+				ft_dprintf(STDERR_FILENO, "connect ICMP DGRAM: %s\n", strerror(errno));
 				close(ctx->fd);
 				ctx->fd = -1;
 				return (-1);
@@ -331,13 +331,13 @@ int socketApplyOptions(tPingSocket *ctx, const tPingOptions *opts)
 		{
 			/* For DGRAM sockets, we need to connect to the target to receive ICMP errors related to that target */
 			struct sockaddr_in6 dst6;
-			memset(&dst6, 0, sizeof(dst6));
+			ft_bzero(&dst6, sizeof(dst6));
 			dst6.sin6_family = AF_INET6;
 			dst6.sin6_addr = ((struct sockaddr_in6 *)&ctx->targetAddr)->sin6_addr;
 
 			if (connect(ctx->fd, (struct sockaddr *)&dst6, sizeof(dst6)) < 0)
 			{
-				perror("connect ICMPv6 DGRAM");
+				ft_dprintf(STDERR_FILENO, "connect ICMPv6 DGRAM: %s\n", strerror(errno));
 				close(ctx->fd);
 				ctx->fd = -1;
 				return (-1);

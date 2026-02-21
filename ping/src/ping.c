@@ -3,10 +3,9 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
+#include "../../hajlib/include/hajlib.h" /* IWYU pragma: keep */
 
 #include "../includes/ping.h"
 #include "../includes/pingUtils.h"
@@ -63,14 +62,14 @@ sendIcmpPacket(tPingContext *ctx)
 		if (payloadLen >= tvSize)
 		{
 			gettimeofday(&tv, NULL);
-			memcpy(payload, &tv, tvSize);
+			ft_memcpy(payload, &tv, tvSize);
 		}
 		else
 			tvSize = 0;
 
 		if (patternLen > 0)
 		{
-			memcpy(pattern, ctx->opts.pattBytes, patternLen);
+			ft_memcpy(pattern, ctx->opts.pattBytes, patternLen);
 			for (i = tvSize; i < payloadLen; i++)
 				payload[i] = pattern[(i - tvSize) % patternLen];
 		}
@@ -140,7 +139,7 @@ sendIcmpPacket(tPingContext *ctx)
 #endif
 	else
 	{
-		fprintf(stderr, "Unsupported address family %d\n", ctx->targetAddr.ss_family);
+		ft_dprintf(STDERR_FILENO, "Unsupported address family %d\n", ctx->targetAddr.ss_family);
 		return (-1);
 	}
 
@@ -166,12 +165,12 @@ sendIcmpPacket(tPingContext *ctx)
 	if (sent < 0)
 	{
 		if (ctx->opts.verbose > 1)
-			fprintf(stderr, "sendto failed: %s (%d)\n", strerror(errno), errno);
+			ft_dprintf(STDERR_FILENO, "sendto failed: %s (%d)\n", strerror(errno), errno);
 		return (-1);
 	}
 
 	if (ctx->opts.verbose > 2)
-		printf("Sent ICMP Echo Request: seq=%u bytes=%zd\n", ctx->seq, sent);
+		ft_printf("Sent ICMP Echo Request: seq=%u bytes=%zd\n", ctx->seq, sent);
 
 	ctx->stats.sent++;
 	return (0);
@@ -211,7 +210,7 @@ recvIcmpDgram(
 	iov.iov_base = buf;
 	iov.iov_len = bufLen;
 
-	memset(&msg, 0, sizeof(msg));
+	ft_bzero(&msg, sizeof(msg));
 	msg.msg_name		= from;		/* source address */
 	msg.msg_namelen		= fromLen;	/* length of source address */
 	msg.msg_iov			= &iov;		/* scatter/gather array */
@@ -221,8 +220,7 @@ recvIcmpDgram(
 
 	n = recvmsg(ctx->sock.fd, &msg, 0);
 #if defined (HAJ)
-	checkIcmpErrorQueue(ctx->sock.fd, ctx->opts.numeric);
-	ctx->stats.errors++;
+		drainIcmpErrorQueue(ctx);
 #else
 	if (ctx->opts.verbose > 0)
 		checkIcmpErrorQueue(ctx->sock.fd, ctx->opts.numeric);
@@ -236,14 +234,14 @@ recvIcmpDgram(
 		if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TTL)
 		{
 			if (c->cmsg_len >= CMSG_LEN(sizeof(int)))
-				memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
+				ft_memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
 			break;
 		}
 #if defined(IPPROTO_IPV6) && defined(IPV6_HOPLIMIT)
 		if (c->cmsg_level == IPPROTO_IPV6 && c->cmsg_type == IPV6_HOPLIMIT)
 		{
 			if (c->cmsg_len >= CMSG_LEN(sizeof(int)))
-				memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
+				ft_memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
 			break;
 		}
 #endif
@@ -291,7 +289,7 @@ recvIcmpRaw(tPingContext *ctx,
 	iov.iov_base = buf;
 	iov.iov_len = bufLen;
 
-	memset(&msg, 0, sizeof(msg));
+	ft_bzero(&msg, sizeof(msg));
 	msg.msg_name = from;
 	msg.msg_namelen = fromLen;
 	msg.msg_iov = &iov;
@@ -309,7 +307,7 @@ recvIcmpRaw(tPingContext *ctx,
 		if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TTL)
 		{
 			if (c->cmsg_len >= CMSG_LEN(sizeof(int)))
-				memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
+				ft_memcpy(&recvTtl, CMSG_DATA(c), sizeof(int));
 			break;
 		}
 	}
@@ -384,24 +382,24 @@ validateIcmpReply(
 				const unsigned char *ip = icmp - 20; /* ICMP starts after IP header */
 				if (icmpLen >= 28) /* minimal IPv4 header + ICMP header */
 				{
-					printf("IP Hdr Dump:\n");
+					ft_printf("IP Hdr Dump:\n");
 					for (size_t i = 0; i < 20; i += 2)
-						printf("%02x%02x ", ip[i], ip[i+1]);
-					printf("\n");
+						ft_printf("%02x%02x ", ip[i], ip[i+1]);
+					ft_printf("\n");
 
-					printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks	  Src\tDst\tData\n");
-					printf("%u  %u  %02x %04x %04x   %u %04x  %02x  %02x %04x ",
+					ft_printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks	  Src\tDst\tData\n");
+					ft_printf("%u  %u  %02x %04x %04x   %u %04x  %02x  %02x %04x ",
 						(ip[0] >> 4), (ip[0] & 0x0F), ip[1],
 						(ip[2] << 8) | ip[3], (ip[4] << 8) | ip[5],
 						(ip[6] >> 5), ((ip[6] & 0x1F) << 8) | ip[7],
 						ip[8], ip[9], (ip[10] << 8) | ip[11]);
-					printf("%u.%u.%u.%u\t%u.%u.%u.%u\n",
+					ft_printf("%u.%u.%u.%u\t%u.%u.%u.%u\n",
 						ip[12], ip[13], ip[14], ip[15],
 						ip[16], ip[17], ip[18], ip[19]);
 				}
 
 				/* print ICMP info */
-				printf("ICMP: type %u, code %u, size %zu, id 0x%04x, seq 0x%04x\n",
+				ft_printf("ICMP: type %u, code %u, size %zu, id 0x%04x, seq 0x%04x\n",
 					icmp[0], icmp[1], icmpLen,
 					(uint16_t)((icmp[4] << 8) | icmp[5]),
 					(uint16_t)((icmp[6] << 8) | icmp[7])
@@ -435,8 +433,8 @@ validateIcmpReply(
 #endif
 
 	/* id/seq are at offsets 4 and 6 (network order) */
-	memcpy(&idNet, icmp + 4, sizeof(idNet));
-	memcpy(&seqNet, icmp + 6, sizeof(seqNet));
+	ft_memcpy(&idNet, icmp + 4, sizeof(idNet));
+	ft_memcpy(&seqNet, icmp + 6, sizeof(seqNet));
 
 	*seqOut = ntohs(seqNet);
 
@@ -453,7 +451,7 @@ validateIcmpReply(
 	{
 		const struct sockaddr_in6 *sfrom6 = (const struct sockaddr_in6 *)from;
 		const struct sockaddr_in6 *starget6 = (const struct sockaddr_in6 *)&ctx->targetAddr;
-		if (memcmp(&sfrom6->sin6_addr, &starget6->sin6_addr, sizeof(sfrom6->sin6_addr)) != 0)
+		if (ft_memcmp(&sfrom6->sin6_addr, &starget6->sin6_addr, sizeof(sfrom6->sin6_addr)) != 0)
 			return (-1);
 	}
 #endif
@@ -491,13 +489,13 @@ computeIcmpRtt(
 	else
 		offset = ICMP4_HDR_LEN;
 
-	memset(rtt, 0, sizeof(*rtt));
+	ft_memset(rtt, 0, sizeof(*rtt));
 	if (userPayload < sizeof(sentTv))
 		return;
 	if (icmpLen < offset + sizeof(sentTv))
 		return;
 
-	memcpy(&sentTv, icmp + offset, sizeof(sentTv));
+	ft_memcpy(&sentTv, icmp + offset, sizeof(sentTv));
 	gettimeofday(&now, NULL);
 	timersub(&now, &sentTv, rtt);
 }
@@ -549,13 +547,13 @@ receiveIcmpReply(
 	/* verbose: if RAW, also print parsed IP header */
 	if (ctx->opts.verbose > 4 && ipHdr)
 	{
-		printf("Received IPv4 Header:\n");
+		ft_printf("Received IPv4 Header:\n");
 		printIpv4Header(ipHdr);
 	}
 
 	if (ctx->opts.verbose > 3)
 	{
-		printf("ICMP reply: seq=%u ttl=%u\n", info->seq, info->ttl);
+		ft_printf("ICMP reply: seq=%u ttl=%u\n", info->seq, info->ttl);
 		printIcmp4Packet(icmp, (uint32_t)icmpLen);
 	}
 
@@ -578,19 +576,19 @@ pingLoopInit(
 	*onWireHeader = ICMP4_HDR_LEN; /* ICMP header on-wire (8) - printing will add user payload */
 
 #if defined(HAJ)
-	printf(PROG_NAME " %s (%s): %u data bytes",
+	ft_printf(PROG_NAME " %s (%s): %u data bytes",
 		ctx->targetHost,
 		ctx->resolvedIp,
 		*userPayload);
 #else
-	printf("PING %s (%s): %u data bytes",
+	ft_printf("PING %s (%s): %u data bytes",
 		ctx->targetHost,
 		ctx->resolvedIp,
 		*userPayload);
 #endif
 
 	if (ctx->opts.verbose > 0)
-		printf(", id 0x%04x = %u", ctx->pid, ctx->pid);
+		ft_printf(", id 0x%04x = %u", ctx->pid, ctx->pid);
 
 	putchar('\n');
 
@@ -602,7 +600,7 @@ pingLoopInit(
 	timevalFromDouble(interval, iv);
 	normalizeTimeval(interval);
 
-	memset(ctx->seqReceived, 0, sizeof(ctx->seqReceived));
+	ft_bzero(ctx->seqReceived, sizeof(ctx->seqReceived));
 
 	gettimeofday(lastSend, NULL);
 
@@ -665,7 +663,7 @@ handleLinger(tPingContext *ctx,
 		{
 			if (errno == EINTR)
 				break;
-			fprintf(stderr, "select failed: %s\n", strerror(errno));
+			ft_dprintf(STDERR_FILENO, "select failed: %s\n", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 
@@ -770,14 +768,9 @@ runPingLoop(tPingContext *ctx)
 			{
 				if (errno == EINTR)	/* interrupted by signal, exit gracefully */
 					break;
-				fprintf(stderr, "select failed: %s\n", strerror(errno));
+				ft_dprintf(STDERR_FILENO, "select failed: %s\n", strerror(errno));
 				exit(EXIT_FAILURE);
 			}
-
-
-			if (ctx->targetAddr.ss_family == AF_INET6 &&
-				ctx->sock.privilege == SOCKET_PRIV_USER)
-				drainIcmpErrorQueue(ctx);
 
 			if (sel == 0)
 				break; /* timeout, send next packet */
@@ -815,7 +808,7 @@ runPingLoop(tPingContext *ctx)
 				{
 #if defined(HAJ)
 					if (!ctx->opts.numeric)
-						printf("%u bytes from %s (%s): icmp_seq=%u ttl=%u",
+						ft_printf("%u bytes from %s (%s): icmp_seq=%u ttl=%u",
 							   replyBytes,
 							   ctx->resolvedIp,
 							   ctx->canonicalName,
@@ -823,18 +816,18 @@ runPingLoop(tPingContext *ctx)
 							   replyInfo.ttl);
 					else
 #endif
-						printf("%u bytes from %s: icmp_seq=%u ttl=%u",
+						ft_printf("%u bytes from %s: icmp_seq=%u ttl=%u",
 							   replyBytes,
 							   ctx->resolvedIp,
 							   replyInfo.seq,
 							   replyInfo.ttl);
 					if (haveRtt)
-						printf(" time=%.3f ms", ms);
+						ft_printf(" time=%.3f ms", ms);
 
 					if (ctx->seqReceived[replyInfo.seq])
 					{
 						ctx->stats.duplicates++;
-						printf(" (DUP!)");
+						ft_printf(" (DUP!)");
 					}
 					else
 						ctx->seqReceived[replyInfo.seq] = TRUE;
@@ -847,16 +840,16 @@ runPingLoop(tPingContext *ctx)
 						{
 							if (strcmp(currRoute, oldRoute) != 0)
 							{
-								printf("\n%s\n", currRoute);
-								strncpy(oldRoute, currRoute, sizeof(oldRoute));
+								ft_printf("\n%s\n", currRoute);
+								ft_strlcpy(oldRoute, currRoute, sizeof(oldRoute));
 							}
 							else
-								printf("\t (same route)\n");
+								ft_printf("\t (same route)\n");
 						} else
-							putchar('\n');
+							ft_putchar_fd('\n', STDOUT_FILENO);
 						printIp4Timestamps((tIpHdr *)ipHdr, ctx->opts.numeric);
 					} else
-						putchar('\n');
+						ft_putchar_fd('\n', STDOUT_FILENO);
 
 					if (ctx->opts.timestamp && replyInfo.type == ICMP4_TIMESTAMP_REPLY)
 						printIcmpv4TimestampReply((const tIcmp4Echo *)buf);

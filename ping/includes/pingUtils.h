@@ -75,8 +75,9 @@ void printInvalidIcmpError(
  * @brief Check for ICMP errors in the socket's error queue and print details
  * @param sock - socket file descriptor to check for errors
  * @param numeric - whether to print in numeric format (no DNS resolution)
+ * @return 1 if an error was found and printed, 0 if no errors were pending
  */
-void checkIcmpErrorQueue(int sock, tBool numeric);
+int checkIcmpErrorQueue(int sock, tBool numeric);
 
 /**
  * @brief Drain the ICMP error queue to remove any pending errors

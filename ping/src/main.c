@@ -1,16 +1,16 @@
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
-#include <unistd.h>
 
-#include "../../common/includes/ip.h"
-#include "../includes/ping.h"
+#include "../../hajlib/include/hstring.h"
+#include "../../hajlib/include/hprintf.h"
+#include "../../hajlib/include/hmemory.h"
+
 #include "../includes/resolve.h"
 #include "../includes/usage.h"
 #include "../includes/utils.h"
+
+#include "../includes/ping.h"
 
 /**
  * @brief Print all resolved IP addresses from addrinfo list
@@ -23,7 +23,7 @@ printAllResolvedIPs(struct addrinfo *res, const char *host)
 	struct addrinfo	*cur;
 	char			ipStr[INET6_ADDRSTRLEN];
 
-	printf("All resolved IPs for '%s':\n", host);
+	ft_printf("All resolved IPs for '%s':\n", host);
 	for (cur = res; cur; cur = cur->ai_next)
 	{
 		if (cur->ai_family == AF_INET)
@@ -36,7 +36,7 @@ printAllResolvedIPs(struct addrinfo *res, const char *host)
 					  ipStr, sizeof(ipStr));
 		else
 			continue;
-		printf("  %s\n", ipStr);
+		ft_printf("  %s\n", ipStr);
 	}
 }
 
@@ -59,7 +59,7 @@ printPrimaryIP(const struct sockaddr_storage *addr, const char *host)
 				  &((struct sockaddr_in6 *)addr)->sin6_addr,
 				  ipStr, sizeof(ipStr));
 	if (*ipStr)
-		printf("Resolved host '%s' to IP: %s\n", host, ipStr);
+		ft_printf("Resolved host '%s' to IP: %s\n", host, ipStr);
 }
 
 /**
@@ -82,7 +82,7 @@ setupPingSocket(
 	/* Validate options against privileges */
 	if (sockValidatePrivileges(opts, sockCtx->privilege) != 0)
 	{
-		fprintf(stderr, "Some options require root privileges.\n");
+		ft_dprintf(STDERR_FILENO, "Some options require root privileges.\n");
 		return (-1);
 	}
 
@@ -102,21 +102,21 @@ setupPingSocket(
 
 	if (socketApplyCommonOptions(sockCtx, opts) != 0)
 	{
-		fprintf(stderr, "Failed to apply socket options.\n");
+		ft_dprintf(STDERR_FILENO, "Failed to apply socket options.\n");
 		pingSocketClose(sockCtx);
 		return (-1);
 	}
 
 	if (socketApplyOptions(sockCtx, opts) != 0)
 	{
-		fprintf(stderr, "Failed to apply socket options.\n");
+		ft_dprintf(STDERR_FILENO, "Failed to apply socket options.\n");
 		pingSocketClose(sockCtx);
 		return (-1);
 	}
 
 	/* Log socket state for verbose level 2 */
 	if (opts->verbose > 1)
-		printf("Socket fd %d created (family=%s, type=%s, proto=%s(%d), priv=%s)\n",
+		ft_printf("Socket fd %d created (family=%s, type=%s, proto=%s(%d), priv=%s)\n",
 			   sockCtx->fd,
 			   sockCtx->family == AF_INET ? "AF_INET" : "AF_INET6",
 			   sockTypeToStr(sockCtx->type),
@@ -147,7 +147,7 @@ main(int argc, char **argv)
 
 	if (parseRes.options.flood && parseRes.options.interval != 0.0)
 	{
-		fprintf(stderr, "%s: -f and -i incompatible options\n", argv[0]);
+		ft_dprintf(STDERR_FILENO, "%s: -f and -i incompatible options\n", argv[0]);
 		return (EXIT_FAILURE);
 	}
 
@@ -180,7 +180,7 @@ main(int argc, char **argv)
 						  ipMode);
 		if (ret != 0)
 		{
-			fprintf(stderr, "%s: unknown host\n", argv[0]);
+			ft_dprintf(STDERR_FILENO, "%s: unknown host\n", argv[0]);
 			exit(EXIT_FAILURE);
 		}
 
@@ -197,13 +197,13 @@ main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		}
 
-		memset(&ctx, 0, sizeof(ctx));
+		ft_bzero(&ctx, sizeof(ctx));
 		ctx.opts = parseRes.options;
 		ctx.sock = sockCtx;
 		ctx.targetAddr = targetAddr;
 		ctx.addrLen = addrLen;
 		ctx.pid = getpid() & 0xFFFF;
-		strncpy(ctx.targetHost, host, sizeof(ctx.targetHost) - 1);
+		ft_strlcpy(ctx.targetHost, host, sizeof(ctx.targetHost) - 1);
 
 #if defined(HAJ)
 		{
@@ -212,7 +212,7 @@ main(int argc, char **argv)
 			tmpCanon[0] = '\0';
 			if (addrList && addrList->ai_canonname)
 			{
-				strncpy(tmpCanon,
+				ft_strlcpy(tmpCanon,
 						addrList->ai_canonname,
 						sizeof(tmpCanon) - 1);
 				tmpCanon[sizeof(tmpCanon) - 1] = '\0';
@@ -241,7 +241,7 @@ main(int argc, char **argv)
 
 		pingSocketClose(&ctx.sock);
 		freeaddrinfo(addrList);
-		printf("\n");
+		ft_printf("\n");
 	}
 	return (EXIT_SUCCESS);
 }

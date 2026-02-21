@@ -366,7 +366,7 @@ static void handleCmsg(int level, struct cmsghdr *cmsg, tBool numeric)
 	}
 }
 
-void checkIcmpErrorQueue(int sock, tBool numeric)
+int checkIcmpErrorQueue(int sock, tBool numeric)
 {
 	struct msghdr msg = {0};
 	struct iovec iov;
@@ -386,7 +386,7 @@ void checkIcmpErrorQueue(int sock, tBool numeric)
 	{
 		if (errno != EAGAIN && errno != EWOULDBLOCK)
 			perror("recvmsg(MSG_ERRQUEUE)");
-		return;
+		return (0);
 	}
 
 	for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg))
@@ -396,6 +396,7 @@ void checkIcmpErrorQueue(int sock, tBool numeric)
 		else
 			printf("Unknown cmsg_level=%d ignored\n", cmsg->cmsg_level);
 	}
+	return (1);
 }
 
 void

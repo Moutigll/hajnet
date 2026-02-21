@@ -52,13 +52,6 @@ const char	*protoToStr(int proto);
 const char	*sockTypeToStr(tPingSocketType type);
 
 /**
- * @brief Compute square root using Newton's method
- * @param x - input value
- * @return square root of x, or -1 on error
- */
-double		ftSqrtNewton(double x);
-
-/**
  * @brief Clamp an integer value between min and max
  * @param val - value to clamp
  * @param min - minimum value

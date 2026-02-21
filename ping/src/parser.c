@@ -1,9 +1,8 @@
 #include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-#include "../../common/includes/getopt.h"
+#include "../../hajlib/include/hajlib.h" /* IWYU pragma: keep */
+
+#include "../../hajlib/include/hgetopt.h"
 #include "../includes/parser.h"
 #include "../includes/usage.h"
 #include "../includes/utils.h"
@@ -93,25 +92,25 @@ handleIntervalOption(const char *optArg, const char *progName, double *outInterv
 	char	*endptr;
 	double	val;
 
-	val = strtod(optArg, &endptr);
+	val = ft_strtod(optArg, &endptr);
 
 	/* Check that the string is a valid number and there are no invalid characters */
 	if (*endptr != '\0')
 	{
-		fprintf(stderr, "%s: invalid value (`%s' near `%s')\n",
+		ft_dprintf(STDERR_FILENO, "%s: invalid value (`%s' near `%s')\n",
 			progName, optArg, endptr);
 #if defined(HAJ)
-		fprintf(stderr, "Try '" PROG_NAME " --help' or '" PROG_NAME " --usage' for more information.\n");
+		ft_dprintf(STDERR_FILENO, "Try '" PROG_NAME " --help' or '" PROG_NAME " --usage' for more information.\n");
 #else
-		fprintf(stderr, "Try '%s --help' or '%s --usage' for more information.\n", progName, progName);
+		ft_dprintf(STDERR_FILENO, "Try '%s --help' or '%s --usage' for more information.\n", progName, progName);
 #endif
 		exit(EXIT_INVALID_OPTION);
 	}
 
 	/* Check the minimum value for non-root users */
-	if ((!isRoot() && val < (double)PING_MIN_USER_INTERVAL / PING_PRECISION) || val <= 0.0 || strcmp("nan", optArg) == 0)
+	if ((!isRoot() && val < (double)PING_MIN_USER_INTERVAL / PING_PRECISION) || val <= 0.0 || ft_strcmp("nan", optArg) == 0)
 	{
-		fprintf(stderr, "%s: option value too small: %s\n",
+		ft_dprintf(STDERR_FILENO, "%s: option value too small: %s\n",
 			progName, optArg);
 		exit(EXIT_FAILURE);
 	}
@@ -122,17 +121,17 @@ handleIntervalOption(const char *optArg, const char *progName, double *outInterv
 static void
 parseIpTsValue(const char *optArg, const char *progName, tIpTsType *outType)
 {
-	if (strcmp(optArg, "tsonly") == 0)
+	if (ft_strcmp(optArg, "tsonly") == 0)
 		*outType = IP_TS_ONLY;
-	else if (strcmp(optArg, "tsaddr") == 0)
+	else if (ft_strcmp(optArg, "tsaddr") == 0)
 		*outType = IP_TS_ADDR;
 #if defined(HAJ)
-	else if (strcmp(optArg, "tsprespec") == 0)
+	else if (ft_strcmp(optArg, "tsprespec") == 0)
 		*outType = IP_TS_PRESPEC;
 #endif
 	else
 	{
-		fprintf(stderr, "%s: unsupported timestamp type: %s\n", progName, optArg);
+		ft_dprintf(STDERR_FILENO, "%s: unsupported timestamp type: %s\n", progName, optArg);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -143,11 +142,11 @@ handlePreloadOption(const char *optArg, const char *progName, unsigned int *outP
 	char *endptr;
 	unsigned long val;
 
-	val = strtoul(optArg, &endptr, 0);
+	val = ft_strtoul(optArg, &endptr, 0);
 
 	if (*endptr != '\0' || val > INT_MAX)
 	{
-		fprintf(stderr, "%s: invalid preload value (%s)\n", progName, optArg);
+		ft_dprintf(STDERR_FILENO, "%s: invalid preload value (%s)\n", progName, optArg);
 		exit(EXIT_FAILURE);
 	}
 
@@ -159,7 +158,7 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 	tFtGetopt	state;
 	int			ret;
 
-	memset(result, 0, sizeof(*result));
+	ft_bzero(result, sizeof(*result));
 	result->options.packetSize = 56;
 
 #if defined(HAJ)
@@ -168,11 +167,11 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 	const char *shortOpts = "t:c:di:nrT:vw:W:fl:p:qRs:?V";
 #endif
 
-	ftGetoptInit(&state, argc, argv);
+	ft_getoptInit(&state, argc, argv);
 
 	while (1)
 	{
-		ret = ftGetoptLong(&state, shortOpts, g_longOptions);
+		ret = ft_getoptLong(&state, shortOpts, g_longOptions);
 		if (ret == FT_GETOPT_END)
 			break ;
 		if (ret == FT_GETOPT_ERROR)
@@ -198,13 +197,13 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 			case OPT_ICMP_ECHO: result->options.echo = TRUE; break;
 			case OPT_ICMP_TIMESTAMP: result->options.timestamp = TRUE; break;
 			case OPT_TYPE: {
-				if (strcmp(state.optArg, "timestamp") == 0)
+				if (ft_strcmp(state.optArg, "timestamp") == 0)
 					result->options.timestamp = TRUE;
-				else if (strcmp(state.optArg, "echo") == 0)
+				else if (ft_strcmp(state.optArg, "echo") == 0)
 					result->options.timestamp = FALSE;
 				else
 				{
-					fprintf(stderr, "%s: unsupported packet type: %s\n", argv[0], state.optArg);
+					ft_dprintf(STDERR_FILENO, "%s: unsupported packet type: %s\n", argv[0], state.optArg);
 					exit(EXIT_FAILURE);
 				}
 			} break;
