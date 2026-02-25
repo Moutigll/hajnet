@@ -1,74 +1,123 @@
+/* usage.c */
+#include <unistd.h> /* STDERR_FILENO */
 #include "../../hajlib/include/hprintf.h"
+#include "../includes/traceroute.h"
 
-void	printUsage(char *progName)
+void printUsage(void)
 {
-	ft_printf("\
-Usage: %s [-46dFnreAUV] [-f FIRST_TTL] [-g GATE,...] [-i IFACE]\n\
-            [-m MAX_TTL] [-N SQUERIES] [-p PORT] [-t TOS]\n\
-            [-l FLOW] [-w MAX] [-q NQUERIES] [-s SRC]\n\
-            [-z SENDWAIT] [-M NAME] [-O OPTS] [-P PROT]\n\
-            [--sport=PORT] [--fwmark=NUM] [--mtu] [--back]\n\
-            HOST ... [ packetlen ]\n",
-		progName);
+	ft_dprintf(STDERR_FILENO,
+		"Usage:\n"
+		"  %s [ -46dFITnreAUDV ] [ -f first_ttl ] [ -g gate,... ] [ -i device ] [ -m max_ttl ] [ -N squeries ] [ -p port ] [ -t tos ] [ -l flow_label ] [ -w MAX,HERE,NEAR ] [ -q nqueries ] [ -s src_addr ] [ -z sendwait ] [ --fwmark=num ] host [ packetlen ]\n",
+		PROG_NAME);
 }
 
-void	printFullHelp(char *progName)
+void printFullHelp(void)
 {
-	ft_printf("Usage: %s [OPTION...] HOST ... [ packetlen ]\n", progName);
-	ft_printf("Print the route packets take to network host.\n\n");
+	/* Usage line (same as system) */
+	printUsage();
 
-	ft_printf(" Address family selection:\n\n");
-	ft_printf("\
-  -4                         use IPv4\n\
-  -6                         use IPv6\n\n");
+	/* short description */
+	ft_dprintf(STDERR_FILENO,
+		"Options:\n");
 
-	ft_printf(" Probe method selection (mutually exclusive):\n\n");
-	ft_printf("\
-  -U, --udp                  use UDP for probing (default port 53)\n\
-  -I, --icmp                 use ICMP ECHO for probing\n\
-  -T, --tcp                  use TCP SYN (default port 80)\n\
-      --udplite              use UDPLITE for probing\n\
-  -D, --dccp                 use DCCP request (default port 33434)\n\
-  -P, --protocol=PROT        use raw IP protocol number PROT\n\n");
+	/* options block - part 1 */
+	ft_dprintf(STDERR_FILENO,
+		"  -4                          Use IPv4\n"
+		"  -6                          Use IPv6\n"
+		"  -d  --debug                 Enable socket level debugging\n"
+		"  -F  --dont-fragment         Do not fragment packets\n"
+		"  -f first_ttl  --first=first_ttl\n"
+		"                              Start from the first_ttl hop (instead from 1)\n"
+		"  -g gate,...  --gateway=gate,...\n"
+		"                              Route packets through the specified gateway\n"
+		"                              (maximum 8 for IPv4 and 127 for IPv6)\n"
+		"  -I  --icmp                  Use ICMP ECHO for tracerouting\n"
+		"  -T  --tcp                   Use TCP SYN for tracerouting (default port is 80)\n"
+		"  -i device  --interface=device\n"
+		"                              Specify a network interface to operate with\n"
+		"  -m max_ttl  --max-hops=max_ttl\n"
+		"                              Set the max number of hops (max TTL to be\n"
+		"                              reached). Default is 30\n"
+		"  -N squeries  --sim-queries=squeries\n"
+		"                              Set the number of probes to be tried\n"
+		"                              simultaneously (default is 16)\n");
 
-	ft_printf(" General options:\n\n");
-	ft_printf("\
-  -d, --debug                enable socket-level debugging\n\
-  -F, --dont-fragment        set Don't Fragment flag\n\
-  -f, --first=FIRST_TTL      start from FIRST_TTL (default 1)\n\
-  -m, --max-hops=MAX_TTL     set maximum hops (default 30)\n\
-  -q, --queries=NQUERIES     probes per hop (default 3)\n\
-  -N, --sim-queries=NUM      simultaneous probes (default 16)\n\
-  -n                         do not resolve hostnames\n\
-  -r                         bypass normal routing\n\
-  -i, --interface=IFACE      specify outgoing interface\n\
-  -s, --source=SRC           specify source address\n\
-  -p, --port=PORT            destination port\n\
-      --sport=PORT           source port (implies -N 1)\n\
-      --fwmark=NUM           set firewall mark\n\n");
+	/* options block - part 2 */
+	ft_dprintf(STDERR_FILENO,
+		"  -n                          Do not resolve IP addresses to their domain names\n"
+		"  -p port  --port=port        Set the destination port to use. It is either\n"
+		"                              initial udp port value for \"default\" method\n"
+		"                              (incremented by each probe, default is 33434), or\n"
+		"                              initial seq for \"icmp\" (incremented as well,\n"
+		"                              default from 1), or some constant destination\n"
+		"                              port for other methods (with default of 80 for\n"
+		"                              \"tcp\", 53 for \"udp\", etc.)\n"
+		"  -t tos  --tos=tos           Set the TOS (IPv4 type of service) or TC (IPv6\n"
+		"                              traffic class) value for outgoing packets\n"
+		"  -l flow_label  --flowlabel=flow_label\n"
+		"                              Use specified flow_label for IPv6 packets\n");
 
-	ft_printf(" Packet options:\n\n");
-	ft_printf("\
-  -t, --tos=TOS              set TOS (IPv4) or traffic class (IPv6)\n\
-  -l, --flowlabel=FLOW       set IPv6 flow label\n\
-  -z, --sendwait=TIME        interval between probes\n\
-  -w, --wait=MAX             max wait time for responses (seconds)\n\
-      --mtu                  discover MTU (implies -F -N 1)\n\
-      --back                 attempt backward path detection\n\n");
+	/* options block - part 3 */
+	ft_dprintf(STDERR_FILENO,
+		"  -w MAX,HERE,NEAR  --wait=MAX,HERE,NEAR\n"
+		"                              Wait for a probe no more than HERE (default 3)\n"
+		"                              times longer than a response from the same hop,\n"
+		"                              or no more than NEAR (default 10) times than some\n"
+		"                              next hop, or MAX (default 5.0) seconds (float\n"
+		"                              point values allowed too)\n"
+		"  -q nqueries  --queries=nqueries\n"
+		"                              Set the number of probes per each hop. Default is\n"
+		"                              3\n"
+		"  -r                          Bypass the normal routing and send directly to a\n"
+		"                              host on an attached network\n"
+		"  -s src_addr  --source=src_addr\n"
+		"                              Use source src_addr for outgoing packets\n"
+		"  -z sendwait  --sendwait=sendwait\n"
+		"                              Minimal time interval between probes (default 0).\n"
+		"                              If the value is more than 10, then it specifies a\n"
+		"                              number in milliseconds, else it is a number of\n"
+		"                              seconds (float point values allowed too)\n");
 
-	ft_printf(" Advanced options:\n\n");
-	ft_printf("\
-  -g, --gateway=G1,G2,...    route through specified gateways\n\
-  -e, --extensions           show ICMP extensions\n\
-  -A, --as-path-lookups      display AS path information\n\
-  -M, --module=NAME          use specified traceroute module\n\
-  -O, --options=OPTS         module-specific options\n\n");
+	/* options block - part 4 */
+	ft_dprintf(STDERR_FILENO,
+		"  -e  --extensions            Show ICMP extensions (if present), including MPLS\n"
+		"  -A  --as-path-lookups       Perform AS path lookups in routing registries and\n"
+		"                              print results directly after the corresponding\n"
+		"                              addresses\n"
+		"  -M name  --module=name      Use specified module (either builtin or external)\n"
+		"                              for traceroute operations. Most methods have\n"
+		"                              their shortcuts (`-I' means `-M icmp' etc.)\n"
+		"  -O OPTS,...  --options=OPTS,...\n"
+		"                              Use module-specific option OPTS for the\n"
+		"                              traceroute module. Several OPTS allowed,\n"
+		"                              separated by comma. If OPTS is \"help\", print info\n"
+		"                              about available options\n");
 
-	ft_printf("\
-  -V, --version              print program version\n\
-      --help                 display this help and exit\n\n");
+	/* options block - final part */
+	ft_dprintf(STDERR_FILENO,
+		"  --sport=num                 Use source port num for outgoing packets. Implies\n"
+		"                              `-N 1'\n"
+		"  --fwmark=num                Set firewall mark for outgoing packets\n"
+		"  -U  --udp                   Use UDP to particular port for tracerouting\n"
+		"                              (instead of increasing the port per each probe),\n"
+		"                              default port is 53\n"
+		"  -UL                         Use UDPLITE for tracerouting (default dest port\n"
+		"                              is 53)\n"
+		"  -D  --dccp                  Use DCCP Request for tracerouting (default port\n"
+		"                              is 33434)\n"
+		"  -P prot  --protocol=prot    Use raw packet of protocol prot for tracerouting\n"
+		"  --mtu                       Discover MTU along the path being traced. Implies\n"
+		"                              `-F -N 1'\n"
+		"  --back                      Guess the number of hops in the backward path and\n"
+		"                              print if it differs\n"
+		"  -V  --version               Print version info and exit\n"
+		"  --help                      Read this help and exit\n\n");
 
-	ft_printf("\
-Mandatory or optional arguments to long options are also mandatory or optional\n\
-for the corresponding short options.\n");
+	/* Arguments block - match spacing/format exactly */
+	ft_dprintf(STDERR_FILENO,
+		"Arguments:\n"
+		"+     host          The host to traceroute to\n"
+		"      packetlen     The full packet length (default is the length of an IP\n"
+		"                    header plus 40). Can be ignored or increased to a minimal\n"
+		"                    allowed value\n");
 }

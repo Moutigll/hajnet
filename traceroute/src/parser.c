@@ -1,4 +1,6 @@
 #include <limits.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "../../hajlib/include/hajlib.h" /* IWYU pragma: keep */
 
@@ -30,16 +32,16 @@ typedef enum eLongOption
 	OPT_AS_LOOKUP		= 'A',
 	OPT_MODULE			= 'M',
 	OPT_OPTIONS			= 'O',
-	OPT_SPORT			= 256,
-	OPT_FWMARK			= 257,
+	OPT_SPORT			= 156,
+	OPT_FWMARK			= 157,
 	OPT_UDP				= 'U',
-	OPT_UDPLITE			= 258,
+	OPT_UDPLITE			= 158,
 	OPT_DCCP			= 'D',
 	OPT_PROTOCOL		= 'P',
-	OPT_MTU				= 259,
-	OPT_BACK			= 260,
+	OPT_MTU				= 159,
+	OPT_BACK			= 160,
 	OPT_VERSION			= 'V',
-	OPT_HELP			= 261
+	OPT_HELP			= 161
 }	tLongOption;
 
 static const tFtLongOption g_longOptions[] = {
@@ -74,6 +76,44 @@ static const tFtLongOption g_longOptions[] = {
 	{NULL, 0, 0}
 };
 
+void exitBadOption(char badOpt, const char *badOptStr, int badArgp)
+{
+	if (badOptStr && *badOptStr)
+		ft_dprintf(STDERR_FILENO, "Bad option `%s' (argc %d)\n", badOptStr, badArgp);
+	else
+		ft_dprintf(STDERR_FILENO, "Bad option `-%c' (argc %d)\n", badOpt, badArgp);
+	exit(EXIT_BAD_ARGS);
+}
+
+void exitMissingArgument(char opt, const char *desc, int badArgp)
+{
+	ft_dprintf(STDERR_FILENO, "Option `-%c' (argc %d) requires an argument: `-%c %s'\n", opt, badArgp, opt, desc);
+	exit(EXIT_BAD_ARGS);
+}
+
+static const char *getOptDescription(char opt)
+{
+	switch (opt)
+	{
+		case 'f': return "first_ttl";
+		case 'm': return "max_ttl";
+		case 'N': return "sim_queries";
+		case 'q': return "queries";
+		case 'p': return "port";
+		case 't': return "tos";
+		case 'l': return "flowlabel";
+		case 'w': return "wait";
+		case 'z': return "sendwait";
+		case 's': return "source";
+		case 'M': return "module";
+		case 'O': return "module_opts";
+		case 156: return "sport";
+		case 157: return "fwmark";
+		case 'P': return "protocol";
+		default: return "unknown";
+	}
+}
+
 int	parseArgs(int argc, char **argv, tParseResult *result)
 {
 	tFtGetopt	state;
@@ -95,8 +135,32 @@ int	parseArgs(int argc, char **argv, tParseResult *result)
 		ret = ft_getoptLong(&state, shortOpts, g_longOptions);
 		if (ret == FT_GETOPT_END)
 			break ;
-		if (ret == FT_GETOPT_ERROR)
-			exit(EXIT_FAILURE);
+		if (ret == FT_GETOPT_POSITIONAL)
+		{
+			if (result->posCount < 2)
+				result->positionals[result->posCount++] = argv[state.index++];
+			else
+			{
+				ft_dprintf(STDERR_FILENO,
+					"Extra arg '%s' (position %d, argc %d)\n",
+					argv[state.index], state.index, argc);
+				exit(EXIT_FAILURE);
+			}
+			continue ;
+		}
+		if (ret == FT_GETOPT_UNKNOWN || ret == FT_GETOPT_ERROR)
+		{
+			if (state.status == FT_GETOPT_MISSING_ARG)
+				exitMissingArgument(state.opt, getOptDescription(state.opt), state.argc - state.index);
+
+			if (state.badOpt != NULL && state.badOpt[0] == '-')
+				result->badOptArg = (char *)state.badOpt; /* long option form: keep the whole string */
+			else if (state.badOpt != NULL)
+				result->badOpt = state.badOpt[0]; /* short option: pointer to the bad char inside argv, take single char */
+			else /* fallback */
+				result->badOpt = '?';
+			exitBadOption(result->badOpt, result->badOptArg, state.argc - state.index);
+		}
 
 		switch (state.opt)
 		{
@@ -106,51 +170,33 @@ int	parseArgs(int argc, char **argv, tParseResult *result)
 			case OPT_DONT_FRAGMENT: result->options.dontFragment = TRUE; break;
 			case OPT_FIRST_TTL:
 				result->options.firstTtl = ft_atoi(state.optArg);
-				if (result->options.firstTtl < 1)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_MAX_HOPS:
 				result->options.maxTtl = ft_atoi(state.optArg);
-				if (result->options.maxTtl < 1)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_QUERIES:
 				result->options.queries = ft_atoi(state.optArg);
-				if (result->options.queries < 1)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_SIM_QUERIES:
 				result->options.simQueries = ft_atoi(state.optArg);
-				if (result->options.simQueries < 1)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_NUMERIC: result->options.numeric = TRUE; break;
 			case OPT_PORT:
 				result->options.port = ft_atoi(state.optArg);
-				if (result->options.port <= 0 || result->options.port > 65535)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_TOS:
 				result->options.tos = ft_atoi(state.optArg);
-				if (result->options.tos < 0 || result->options.tos > 255)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_FLOWLABEL:
 				result->options.flowLabel = ft_atoi(state.optArg);
-				if (result->options.flowLabel < 0)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_WAIT:
 				result->options.waitSpec.max = ft_atod(state.optArg);
-				if (result->options.waitSpec.max <= 0.0)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_BYPASS: result->options.bypassRouting = TRUE; break;
 			case OPT_SOURCE: result->options.sourceAddr = state.optArg; break;
 			case OPT_SENDWAIT:
 				result->options.sendWait = ft_atod(state.optArg);
-				if (result->options.sendWait < 0.0)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_EXTENSIONS: result->options.extensions = TRUE; break;
 			case OPT_AS_LOOKUP: result->options.asLookup = TRUE; break;
@@ -158,19 +204,31 @@ int	parseArgs(int argc, char **argv, tParseResult *result)
 			case OPT_OPTIONS: result->options.moduleOpts = state.optArg; break;
 			case OPT_SPORT:
 				result->options.sourcePort = ft_atoi(state.optArg);
-				if (result->options.sourcePort <= 0
-					|| result->options.sourcePort > 65535)
-					exit(EXIT_FAILURE);
 				result->options.simQueries = 1;
 				break;
 			case OPT_FWMARK:
 				result->options.fwmark = ft_atoi(state.optArg);
-				if (result->options.fwmark < 0)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_UDP:
 				result->options.method = PROBE_UDP;
 				result->options.port = 53;
+				/* check for UDPLite "-UL" f POSIX i guess... */
+				if (state.index < state.argc)
+				{
+					const char *curArg = state.argv[state.index];
+					if (curArg[state.subIndex] == 'L')
+					{
+						result->options.method = PROBE_UDPLITE;
+						if (curArg[state.subIndex + 1] != '\0')
+							exitBadOption('L', "L", state.argc - state.index);
+						state.subIndex++;
+						if ((size_t)state.subIndex >= ft_strlen(curArg))
+						{
+							state.index++;
+							state.subIndex = 0;
+						}
+					}
+				}
 				break;
 			case OPT_ICMP:
 				result->options.method = PROBE_ICMP;
@@ -189,8 +247,6 @@ int	parseArgs(int argc, char **argv, tParseResult *result)
 			case OPT_PROTOCOL:
 				result->options.method = PROBE_RAW;
 				result->options.protocol = ft_atoi(state.optArg);
-				if (result->options.protocol < 0)
-					exit(EXIT_FAILURE);
 				break;
 			case OPT_INTERFACE: result->options.interface = state.optArg; break;
 			case OPT_GATEWAY: result->options.gateways = state.optArg; break;
@@ -218,6 +274,9 @@ int	parseArgs(int argc, char **argv, tParseResult *result)
 	}
 
 	if (result->posCount < 1)
-		return (PARSE_HELP);
+	{
+		ft_dprintf(STDERR_FILENO, "Specify \"host\" missing argument.\n");
+		exit(EXIT_BAD_ARGS);
+	}
 	return (PARSE_OK);
 }

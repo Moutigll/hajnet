@@ -4,8 +4,15 @@
 
 # include "../../common/includes/utils.h"
 
+#if defined(HAJ)
+# define PROG_NAME "hajroute"
+#else
+# define PROG_NAME "traceroute"
+#endif
+
 # define EXIT_SUCCESS 0
 # define EXIT_FAILURE 1
+# define EXIT_BAD_ARGS 2
 # define TR_DEFAULT_MAX_HOPS 30
 # define TR_DEFAULT_QUERIES 3
 # define TR_DEFAULT_SIM_QUERIES 16
@@ -74,8 +81,8 @@ typedef struct sParseResult
 
 int	parseArgs(int argc, char **argv, tParseResult *result);
 
-void	printFullHelp(char *progName);
+void	printFullHelp(void);
 
-void	printUsage(char *progName);
+void	printUsage(void);
 
 #endif
