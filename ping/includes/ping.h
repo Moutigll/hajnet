@@ -35,21 +35,6 @@
 extern volatile sig_atomic_t g_pingInterrupted; /* Flag set when SIGINT is received */
 
 /**
- * @brief Enumeration for IP address types
- * - IP_TYPE_UNSPEC: unspecified
- * - IP_TYPE_V4: IPv4
- * - IP_TYPE_V6: IPv6
- */
-typedef enum eIpType
-{
-	IP_TYPE_V4 = 1,
-#if defined(HAJ)
-	IP_TYPE_UNSPEC = 0,
-	IP_TYPE_V6 = 2
-#endif
-} tIpType;
-
-/**
  * @brief Ping statistics
  * - sent: number of packets sent
  * - received: number of packets received

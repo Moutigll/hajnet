@@ -1,10 +1,21 @@
 #ifndef HAJPING_RESOLVE_H
 # define HAJPING_RESOLVE_H
 
-#include <stddef.h>
+#include <netdb.h>
 #include <sys/socket.h>
 
-#include "ping.h"
+/**
+ * @brief Enumeration for IP address types
+ * - IP_TYPE_UNSPEC: unspecified
+ * - IP_TYPE_V4: IPv4
+ * - IP_TYPE_V6: IPv6
+ */
+typedef enum eIpType
+{
+	IP_TYPE_UNSPEC = 0,
+	IP_TYPE_V4 = 1,
+	IP_TYPE_V6 = 2
+} tIpType;
 
 /**
  * @brief Resolve a hostname or IP string to a sockaddr_storage structure

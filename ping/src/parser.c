@@ -174,6 +174,11 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 		ret = ft_getoptLong(&state, shortOpts, g_longOptions);
 		if (ret == FT_GETOPT_END)
 			break ;
+		if (ret == FT_GETOPT_POSITIONAL)
+		{
+			result->positionals[result->posCount++] = argv[state.index++];
+			continue ;
+		}
 		if (ret == FT_GETOPT_ERROR)
 		{
 			if (state.status == FT_GETOPT_AMBIGUOUS) /* Ambiguity (long option prefix matches >1) */

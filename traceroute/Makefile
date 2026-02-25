@@ -13,11 +13,11 @@ include sources.mk
 
 .PHONY: all clean fclean re haj
 
-all: $(COMMON_OBJ) $(OBJ) $(NAME)
+all: $(HLIB_LIBA) $(COMMON_OBJ) $(OBJ) $(NAME)
 
 $(HLIB_LIBA):
 	@echo -e "$(BLUE)Building hajlib...$(RESET)"
-	$(MAKE) -C $(HLIB_PATH)
+	$(MAKE) -C $(HLIB_PATH) -j $(nproc)
 
 $(COMMON_OBJ):
 	@printf "$(CYAN)traceroute: Building common objects...$(RESET)\n"

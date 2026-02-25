@@ -6,7 +6,7 @@
 #include "../../hajlib/include/hprintf.h"
 #include "../../hajlib/include/hmemory.h"
 
-#include "../includes/resolve.h"
+#include "../../common/includes/resolve.h"
 #include "../includes/usage.h"
 #include "../includes/utils.h"
 

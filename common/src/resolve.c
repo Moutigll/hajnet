@@ -3,7 +3,6 @@
 #include "../../hajlib/include/hmemory.h"
 #include "../../hajlib/include/hstring.h"
 
-#include "../includes/ping.h"
 #include "../includes/resolve.h"
 
 /**
@@ -35,17 +34,12 @@ resolveHost(const char				*host,
 	hints.ai_flags |= AI_CANONNAME;	// Optional: get canonical name
 
 	// Set preferred IP family
-#if defined(HAJ)
 	if (ipMode == IP_TYPE_V4)
 		hints.ai_family = AF_INET;
 	else if (ipMode == IP_TYPE_V6)
 		hints.ai_family = AF_INET6;
 	else
 		hints.ai_family = AF_UNSPEC; // allow both
-#else
-	(void)ipMode;
-	hints.ai_family = AF_INET; // default to IPv4
-#endif
 
 	// If host is an IP literal, getaddrinfo will skip DNS resolution
 	hints.ai_flags |= AI_NUMERICHOST;
