@@ -1,23 +1,60 @@
 #include "../../hajlib/include/hprintf.h"
-#include "../../hajlib/include/hstring.h"
 
-#include "../includes/socket.h"
-#include "../../common/includes/resolve.h"
-
+#include "../includes/network.h"
 #include "../includes/traceroute.h"
 
-static int findArgpos(int argc, char **argv, const char *arg)
+static int validateArgs(tParseResult *result)
 {
-	int i;
+	if (result->options.firstTtl < 1 || result->options.firstTtl > result->options.maxTtl)
+		ft_dprintf(STDERR_FILENO, "first hop out of range\n");
+	else if (result->options.maxTtl < 1 || result->options.maxTtl > 255)
+		ft_dprintf(STDERR_FILENO, "max hops cannot be more than 255\n");
+	else
+		return (EXIT_SUCCESS);
+	return (EXIT_BAD_ARGS);
+}
 
-	i = 1;
-	while (i < argc)
+static int	initSocket(tTracerouteSocket *socketCtx,
+						tParseResult *parseResult,
+						struct sockaddr_storage *dstAddr)
+{
+	int	family;
+
+	family = (dstAddr->ss_family == AF_INET) ? AF_INET : AF_INET6;
+
+	tracerouteSocketInit(socketCtx,
+						 family,
+						 parseResult->options.method);
+
+	if (tracerouteSocketCreate(socketCtx,
+							   &parseResult->options) < 0)
 	{
-		if (ft_strcmp(argv[i], arg) == 0)
-			return (i);
-		i++;
+		ft_dprintf(STDERR_FILENO,
+			"Failed to create socket\n");
+		return (EXIT_FAILURE);
 	}
-	return (-1);
+	return (EXIT_SUCCESS);
+}
+
+static int	runTraceroute(tParseResult *parseResult,
+							struct sockaddr_storage *dstAddr,
+							socklen_t dstLen)
+{
+	tTracerouteSocket	socketCtx;
+
+	(void)dstLen;
+	if (initSocket(&socketCtx, parseResult, dstAddr) != EXIT_SUCCESS)
+		return (EXIT_FAILURE);
+
+	ft_printf("Traceroute to %s, %d hops max, %d byte packets\n",
+			  parseResult->positionals[0],
+			  parseResult->options.maxTtl,
+			  0);
+
+	/* TODO: send probes here */
+
+	tracerouteSocketClose(&socketCtx);
+	return (EXIT_SUCCESS);
 }
 
 int	main(int argc, char **argv)
@@ -26,51 +63,28 @@ int	main(int argc, char **argv)
 	int						parseRet;
 	struct sockaddr_storage	dstAddr;
 	socklen_t				dstLen;
-	tTracerouteSocket		socketCtx;
+	int						ret;
 
 	if (argc == 1)
-		return (printFullHelp(), EXIT_SUCCESS);
+		return (printFullHelp(argv[0]), EXIT_SUCCESS);
 
 	parseRet = parseArgs(argc, argv, &parseResult);
 	if (parseRet == PARSE_HELP)
-		return (printFullHelp(), EXIT_SUCCESS);
-	else if (parseRet == PARSE_VERSION)
+		return (printFullHelp(argv[0]), EXIT_SUCCESS);
+	if (parseRet == PARSE_VERSION)
 	{
 		ft_printf("HajRoute (hajnet) 1.0.0\n");
 		return (EXIT_SUCCESS);
 	}
-	else if (parseRet != PARSE_OK)
+	if (parseRet != PARSE_OK)
 		return (EXIT_FAILURE);
 
-	if (resolveHost(parseResult.positionals[0], &dstAddr, &dstLen, NULL,
-					(parseResult.options.v4) ? IP_TYPE_V4 :
-					(parseResult.options.v6) ? IP_TYPE_V6 : IP_TYPE_UNSPEC) != 0)
-	{
-		ft_dprintf(STDERR_FILENO, "%s: Name or service not known\n",
-				   parseResult.positionals[0]);
-		ft_dprintf(STDERR_FILENO, "Cannot handle \"host\" cmdline arg `%s' on position 1 (argc %d)\n",
-				   parseResult.positionals[0], findArgpos(argc, argv, parseResult.positionals[0]));
+	ret = resolveDestination(&parseResult, &dstAddr, &dstLen, argc, argv);
+	if (ret != EXIT_SUCCESS)
+		return (ret);
+
+	if (validateArgs(&parseResult) != EXIT_SUCCESS)
 		return (EXIT_BAD_ARGS);
-	}
 
-	/* --- Initialisation et création du socket --- */
-	tracerouteSocketInit(&socketCtx,
-						 (dstAddr.ss_family == AF_INET) ? AF_INET : AF_INET6,
-						 parseResult.options.method);
-	if (tracerouteSocketCreate(&socketCtx, &parseResult.options) < 0)
-	{
-		ft_dprintf(STDERR_FILENO, "Failed to create socket\n");
-		return (EXIT_FAILURE);
-	}
-
-	/* --- Affichage de base --- */
-	ft_printf("Traceroute to %s, %d hops max, %d byte packets\n",
-			  parseResult.positionals[0],
-			  parseResult.options.maxTtl,
-			  0);
-
-	/* --- TODO: ici on peut commencer à envoyer les probes --- */
-
-	tracerouteSocketClose(&socketCtx);
-	return (EXIT_SUCCESS);
+	return (runTraceroute(&parseResult, &dstAddr, dstLen));
 }

@@ -1,18 +1,12 @@
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 
 #include "../../hajlib/include/hmemory.h"
 #include "../../hajlib/include/hprintf.h"
 
-#include "../includes/socket.h"
+#include "../includes/network.h"
 
 
 static void	fatalError(const char *msg)

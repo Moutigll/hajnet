@@ -3,18 +3,18 @@
 #include "../../hajlib/include/hprintf.h"
 #include "../includes/traceroute.h"
 
-void printUsage(void)
+void printUsage(char *progName)
 {
 	ft_dprintf(STDERR_FILENO,
 		"Usage:\n"
 		"  %s [ -46dFITnreAUDV ] [ -f first_ttl ] [ -g gate,... ] [ -i device ] [ -m max_ttl ] [ -N squeries ] [ -p port ] [ -t tos ] [ -l flow_label ] [ -w MAX,HERE,NEAR ] [ -q nqueries ] [ -s src_addr ] [ -z sendwait ] [ --fwmark=num ] host [ packetlen ]\n",
-		PROG_NAME);
+		progName);
 }
 
-void printFullHelp(void)
+void printFullHelp(char *progName)
 {
 	/* Usage line (same as system) */
-	printUsage();
+	printUsage(progName);
 
 	/* short description */
 	ft_dprintf(STDERR_FILENO,
