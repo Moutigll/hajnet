@@ -1,65 +1,279 @@
+# ----- HELP AND VERSION (these are the only ones that succeed) -----
 -h
 --help
 --usage
--4
--6
--d
--F
--I
--T
--U
--UL
---mt
---mtu
+-?
 
--f
--f dsad
--f 5
--f 0 exemple.com
--f -1000 exemple.com
--f 31 exemple.com
-traceroute -f 3.0
+# ----- FIRST TTL INVALID VALUES -----
+-f example.com
+-f dsad example.com
+-f 0 example.com
+-f -1000 example.com
+-f 3.0 example.com
+-f 256 example.com
+-f 999999999999 example.com
+-f abc example.com
 
-traceroute -m 0 exemple.com
-traceroute -m 10000 exemple.com
-traceroute -m 256 exemple.com
-traceroute -m 3.0
-traceroute -f 30 -m 15 exemple.com
+# ----- MAX HOPS INVALID VALUES -----
+-m example.com
+-m 0 example.com
+-m -5 example.com
+-m 256 example.com
+-m 3.0 example.com
+-m 10000 example.com
+-m abc example.com
+-m 1.5 example.com
 
--g
--g 
---g
---gateway
---gateway=
--g exemple.com
---gateway=exemple.com
--6 -g 2001:4860:4860::8888 exemple.com
--g 2001:db8::1 exemple.com
---gateway=2001:db8::1 exemple.com
--g 1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5,6.6.6.6,7.7.7.7,8.8.8.8,9.9.9.9 exemple.com
--g , exemple.com
+# ----- FIRST AND MAX COMBINED (invalid ranges) -----
+-f 30 -m 15 example.com
+-f 0 -m 0 example.com
+-f -5 -m 30 example.com
+
+# ----- GATEWAYS - INVALID COMBINATIONS -----
+-g example.com
+-g  example.com
+--gateway example.com
+-g 1.1.1.1 example.com
+-g 1.1.1.1,2.2.2.2 example.com
+-g 1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5,6.6.6.6,7.7.7.7,8.8.8.8,9.9.9.9 example.com
+-g 1.1.1.1,2001:db8::1 example.com
+-4 -g 2001:db8::1 example.com
+-6 -g 1.1.1.1 example.com
+-g , example.com
+-g ,1.1.1.1 example.com
+-g 1.1.1.1, example.com
+-g 1.1.1.1,,2.2.2.2 example.com
+-g 1.1.1.1, ,2.2.2.2 example.com
+-g 999.999.999.999 example.com
+-g 256.256.256.256 example.com
+-g 2001:::1 example.com
+-g gggg::1 example.com
+-g abc.def.ghi.jkl example.com
 -g s example.com
--g :: example.com
--g ,1.1.1.1 exemple.com
--g 1.1.1.1, ,2.2.2.2 exemple.com
--g 999.999.999.999 exemple.com
--g 256.256.256.256 exemple.com
--g abc.def.ghi.jkl exemple.com
--g 2001:::1 exemple.com
--g gggg::1 exemple.com
--g 1.1.1.1,2001:db8::1 exemple.com
--4 -g 2001:db8::1 exemple.com
--6 -g 1.1.1.1 exemple.com
--g 2001:db8::1,2001:db8::1 exemple.com
--g $(printf '1.1.1.1,' {1..50})exemple.com
--g $(printf '2001:db8::1,' {1..200})exemple.com
--g 1.1.1.1
--g 1.1.1.1 exemple.com extra
--g 255.255.255.255 exemple.com
--g ::1 exemple.com
--g :: exemple.com
--g fe80::1 exemple.com
--g-1 exemple.com
--g--help exemple.com
---gateway--help exemple.com
---gateway --help exemple.com
+-g 1.1.1.1,fe80::1 example.com
+-g 1.1.1.1,::1 example.com
+-g 1.1.1.1,::ffff:1.1.1.1 example.com
+-g 1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5,7.7.7.7,8.8.8.8 -4 -g 9.9.9.9
+-g 1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5,6.6.6.6,7.7.7.7,8.8.8.8 -4 -g 9.9.9.9 exemple.com
+-g example.com example.com
+-g-1 example.com
+-g--help example.com
+--gateway--help example.com
+--gateway --help example.com
+
+# ----- GATEWAYS WITH SHELL EXPANSION (will be evaluated by tester) -----
+-g $(printf '1.1.1.1,' {1..50})example.com
+-g $(printf '2001:db8::1,' {1..200})example.com
+
+# ----- PROBE METHODS -----
+-T example.com
+--tcp example.com
+-q 0 -f 0 example.com
+-q 0 -m 259 example.com
+--udplite example.com
+-D example.com
+--dccp example.com
+-P 6 example.com
+--protocol=6 example.com
+-P tcp example.com
+-P 256 example.com
+-P -1 example.com
+-P abc example.com
+--protocol example.com
+--protocol= example.com
+
+-i example.com
+
+# ----- SIMULTANEOUS QUERIES INVALID -----
+-N example.com
+-N abc example.com
+-N 3.5 example.com
+
+-n 4 example.com
+
+# ----- PORT INVALID -----
+-p example.com
+-p abc example.com
+
+# ----- TOS INVALID -----
+-t example.com
+-t abc example.com
+-t 1.5 example.com
+
+# ----- FLOWLABEL INVALID -----
+-l example.com
+-l abc example.com
+
+# ----- WAIT SPECS INVALID -----
+-w 5, example.com
+-w ,3,10 example.com
+-w abc example.com
+-w 5.0,abc,10 example.com
+-w 5.0,3,abc example.com
+-w 5.0,3,10,extra example.com
+-w 5.0 3 10 example.com
+
+# ----- QUERIES PER HOP INVALID -----
+-q example.com
+-q 0 example.com
+-q -5 example.com
+-q abc example.com
+-q 3.5 example.com
+
+# ----- SOURCE ADDRESS INVALID -----
+-s example.com
+-s 192.168.1.1 example.com
+-s 0.0.0.0 example.com
+-s invalid example.com
+
+# ----- SENDWAIT INVALID -----
+-z example.com
+-z -1 example.com
+-z abc example.com
+
+# ----- MODULE INVALID -----
+-M example.com
+-M tcp example.com
+-M raw example.com
+-M nonexistent example.com
+-M icmp -O help example.com
+-M icmp -O foo=bar example.com
+
+# ----- MODULE OPTIONS INVALID -----
+-O example.com
+-O help example.com
+
+# ----- SOURCE PORT INVALID -----
+--sport example.com
+--sport 12345 example.com
+--sport 0 example.com
+--sport 65536 example.com
+--sport abc example.com
+--sport 12345 example.com extra
+
+# ----- FIREWALL MARK INVALID -----
+--fwmark example.com
+--fwmark 123 example.com
+--fwmark 0 example.com
+--fwmark 4294967296 example.com
+--fwmark abc example.com
+
+# ----- MTU DISCOVERY -----
+--mt example.com
+--mtu 1 example.com
+--mtu= example.com
+
+# ----- BACKWARD -----
+--back 1 example.com
+
+# ----- COMBINED SHORT OPTIONS -----
+-46dFf5 example.com
+-46dF -g 1.1.1.1 example.com
+-46dFg1.1.1.1 example.com
+-46dFg 1.1.1.1 example.com
+-46dFg1.1.1.1 -m30 example.com
+-46dF -I -T example.com
+-46dF -i eth0 -s 1.1.1.1 -p 53 -t 0 -l 0 -q 3 -N 16 -z 0.5 -w 5.0,3,10 example.com
+
+# ----- LONG OPTIONS INVALID COMBINATIONS -----
+--first example.com
+--first= example.com
+--gateway=1.1.1.1 example.com
+--gateway 1.1.1.1 example.com
+--tcp example.com
+--udplite example.com
+--dccp example.com
+--protocol example.com
+--protocol=6 example.com
+--protocol= example.com
+--interface example.com
+--max-hops example.com
+--max-hops= example.com
+--sim-queries example.com
+--sim-queries= example.com
+--numeric example.com
+--port example.com
+--port= example.com
+--tos example.com
+--tos= example.com
+--flowlabel example.com
+--flowlabel= example.com
+--wait example.com
+--wait= example.com
+--queries example.com
+--queries= example.com
+--source example.com
+--source=1.1.1.1 example.com
+--source= example.com
+--sendwait example.com
+--sendwait= example.com
+--module example.com
+--module= example.com
+--options example.com
+--sport example.com
+--sport= example.com
+--fwmark example.com
+--fwmark= example.com
+
+# ----- AMBIGUOUS LONG OPTION PREFIXES -----
+--de example.com
+--f example.com
+--g example.com
+--i example.com
+--m example.com
+--p example.com
+--t example.com
+--w example.com
+--s example.com
+--q example.com
+--si example.com
+--sp example.com
+--fw example.com
+--ba example.com
+--he example.com
+
+# ----- MALFORMED LONG OPTIONS -----
+---debug example.com
+--debug= --help example.com
+--debug -- --help example.com
+-- --help example.com
+-- --gateway=1.1.1.1 example.com
+-- -4 example.com
+-- -g 1.1.1.1 example.com
+-- -- -4 example.com
+
+# ----- POSITIONALS INVALID (host first) -----
+
+
+example.com 65536
+example.com 65001
+example.com abc
+example.com 1500 extra
+example.com 1500 extra extra
+example.com -- --help
+example.com -- -g 1.1.1.1
+
+# ----- HOST NAMES THAT CAN'T RESOLVE -----
+this.host.does.not.exist.invalid
+192.168.1.256
+255.255.255.255
+
+# ----- OPTIONS THAT IMPLY OTHERS -----
+--sport 12345 -N 10 example.com
+
+# ----- EXTREMELY LONG NUMERIC VALUES -----
+-f 99999999999999999999 example.com
+-m 99999999999999999999 example.com
+-q 99999999999999999999 example.com
+--first=99999999999999999999 example.com
+--max-hops=99999999999999999999 example.com
+--queries=99999999999999999999 example.com
+--protocol=99999999999999999999 example.com
+
+# ----- MANY GATEWAYS -----
+-g 1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5,6.6.6.6,7.7.7.7,8.8.8.8,9.9.9.9,10.10.10.10,11.11.11.11,12.12.12.12,13.13.13.13,14.14.14.14,15.15.15.15,16.16.16.16,17.17.17.17,18.18.18.18,19.19.19.19,20.20.20.20 example.com
+
+# ----- INTERNATIONAL DOMAIN NAMES -----
+bücher.example
+xn--bcher-kva.example
+例子.测试
