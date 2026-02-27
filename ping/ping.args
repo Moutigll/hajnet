@@ -1,0 +1,215 @@
+-h
+'  -h'
+-?
+--help
+--help --usage
+-c
+-c 0
+-c -1
+-c 500000000000000000000000000000
+-c '3 4'
+-c '3 '
+-c 1 -- --help
+-c=1
+--count=2
+--count 2
+--count==2
+'--count 2'
+'--count= 2'
+'--count =2'
+'--count=' 2s
+'--c=2'
+--count=
+--c=
+--c=2
+--cou=2
+--ti
+--tim
+--timeou=5
+--wefwf
+--z
+-z
+
+# ----- COMBINED SHORT OPTIONS -----
+-vn
+-vc 3
+-vf
+
+# ----- SHORT OPTIONS WITH IMMEDIATE ARGUMENT -----
+-c3
+-w5
+-W10
+
+# ----- LONG OPTIONS WITH ARGUMENT -----
+--count 4
+--timeout=10
+--timeout 10
+--pattern=abcd
+--pattern abcd
+
+# ----- LONG OPTION AMBIGUOUS PREFIX -----
+--co
+--pa
+
+# ----- LONG OPTION WITH SPACES -----
+'--pattern =abcd'
+'--pattern= abcd'
+'--count =5'
+'--count= 5'
+
+# ----- FINISH PARSING WITH -- -----
+-- --count=5
+-v -- -c 2
+
+# ----- INVALID NUMERIC VALUES -----
+-c abc
+--count=abc
+--timeout=abc
+--preload=-1
+--preload=-255
+
+# ----- REPEATED OPTIONS -----
+-v -v -v
+--count=1 --count=2
+
+# ----- EXTREME COMBINATIONS -----
+-v -n -f -c3 --timeout=5 --pattern=aa --preload=2
+-c 1 -- --count=5 -v
+
+
+# ----- COUNT (-c / --count) -----
+-c 1
+-c 0001
+-c +1
+-c -0
+-c +0
+-c 4294967295
+-c 18446744073709551615
+-c --1
+-c ++1
+
+--count=1
+--count=0001
+--count=+1
+--count=-1
+--count=18446744073709551615
+--count=abc
+
+# ----- INTERVAL (-i) : double parsing via strtod -----
+-i 1
+-i 0.1
+-i .5
+-i 1.
+-i 1e3
+-i 1e-3
+-i 0
+-i -1
+-i nan
+-i inf
+-i 1.2.3
+-i 1,5
+
+# ----- DATA SIZE (-s) -----
+-s 1
+-s 8
+-s 56
+-s 1472
+-s 65400
+-s 65399
+-s 65535
+-s 65536
+-s -1
+-s +1
+-s 01
+-s 1.5
+-s abc
+
+# ----- TOS (-T) -----
+-T 0
+-T 1
+-T 255
+-T 256
+-T -1
+-T +1
+-T 01
+-T 1.5
+-T abc
+
+# ----- TIMEOUT (-w) -----
+-w 1
+-w 0
+-w -1
+-w 2147483647
+-w 2147483648
+-w +1
+-w 01
+-w 1.0
+-w abc
+
+# ----- LINGER (-W) -----
+-W 1
+-W 0
+-W -1
+-W 2147483647
+-W 2147483648
+-W +1
+-W 01
+-W 1.0
+-W abc
+
+# ----- PRELOAD (-l) -----
+-l 0
+-l 1
+-l -1
+-l 2147483647
+-l 2147483648
+-l 999999999999
+-l +1
+-l 01
+-l 1.5
+-l abc
+
+# ----- TTL (--ttl) -----
+--ttl 1
+--ttl 255
+--ttl 0
+--ttl 256
+--ttl -1
+--ttl +1
+--ttl 01
+--ttl 1.5
+--ttl abc
+
+# ----- PATTERN (--pattern) -----
+-p ab
+-p deadbeef
+-p 00ff
+-p 01020304
+
+--pattern=abcd
+--pattern deadbeef
+--pattern=DEADBEEF
+--pattern=deAdBeEf
+-p ''
+-p 0
+-p abc
+-p abcg
+-p ' ' 
+-p '    s'
+-p zz
+-p 12gohepgihwe
+-p '12 34'
+
+# ----- IP-TIMESTAMP (--ip-timestamp) -----
+--ip-timestamp
+--ip-timestamp=1
+--ip-timestamp=dsdfsdf
+--ip-timestamp=tsonly
+--ip-timestamp=addronly
+--ip-timestamp=
+
+# ----- MULTI-NUMERIC COMBINATIONS -----
+-c 1 -s 65464 -T 255 -w 1 -W 1 -l 1 --ttl 255
+-c 0 -s 0 -T 0 -w 0 -W 0 -l 0 --ttl 0
+-c -1 -s -1 -T -1 -w -1 -W -1 -l -1 --ttl -1
+-c abc -s abc -T abc -w abc -W abc -l abc --ttl abc

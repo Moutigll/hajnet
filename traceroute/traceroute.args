@@ -1,0 +1,65 @@
+-h
+--help
+--usage
+-4
+-6
+-d
+-F
+-I
+-T
+-U
+-UL
+--mt
+--mtu
+
+-f
+-f dsad
+-f 5
+-f 0 exemple.com
+-f -1000 exemple.com
+-f 31 exemple.com
+traceroute -f 3.0
+
+traceroute -m 0 exemple.com
+traceroute -m 10000 exemple.com
+traceroute -m 256 exemple.com
+traceroute -m 3.0
+traceroute -f 30 -m 15 exemple.com
+
+-g
+-g 
+--g
+--gateway
+--gateway=
+-g exemple.com
+--gateway=exemple.com
+-6 -g 2001:4860:4860::8888 exemple.com
+-g 2001:db8::1 exemple.com
+--gateway=2001:db8::1 exemple.com
+-g 1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5,6.6.6.6,7.7.7.7,8.8.8.8,9.9.9.9 exemple.com
+-g , exemple.com
+-g s example.com
+-g :: example.com
+-g ,1.1.1.1 exemple.com
+-g 1.1.1.1, ,2.2.2.2 exemple.com
+-g 999.999.999.999 exemple.com
+-g 256.256.256.256 exemple.com
+-g abc.def.ghi.jkl exemple.com
+-g 2001:::1 exemple.com
+-g gggg::1 exemple.com
+-g 1.1.1.1,2001:db8::1 exemple.com
+-4 -g 2001:db8::1 exemple.com
+-6 -g 1.1.1.1 exemple.com
+-g 2001:db8::1,2001:db8::1 exemple.com
+-g $(printf '1.1.1.1,' {1..50})exemple.com
+-g $(printf '2001:db8::1,' {1..200})exemple.com
+-g 1.1.1.1
+-g 1.1.1.1 exemple.com extra
+-g 255.255.255.255 exemple.com
+-g ::1 exemple.com
+-g :: exemple.com
+-g fe80::1 exemple.com
+-g-1 exemple.com
+-g--help exemple.com
+--gateway--help exemple.com
+--gateway --help exemple.com
