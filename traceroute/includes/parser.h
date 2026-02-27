@@ -5,6 +5,7 @@
 # include "../../common/includes/utils.h"
 
 # include "traceroute.h"
+#include <netinet/in.h>
 
 extern const tFtLongOption g_longOptions[];
 
@@ -19,25 +20,31 @@ typedef struct sTracerouteOptions
 	int				queries;		/* Number of probe packets per hop */
 	int				simQueries;		/* Number of probe packets per hop when using the "simultaneous" method */
 	tBool			numeric;		/* Don't resolve IP addresses to their domain names */
-	int				port;			/* Destination port to use when probing with UDP, DCCP or TCP */
+	unsigned int	port;			/* Destination port to use when probing with UDP, DCCP or TCP */
 	int				tos;			/* Type of Service (TOS) field to set in probe packets */
 	int				flowLabel;		/* Flow label to set in probe packets (IPv6 only) */
 	tWaitSpec		waitSpec;		/* Wait time specification for probe responses */
 	tBool			bypassRouting;	/* Bypass normal routing and send probes directly to the destination */
-	char			*sourceAddr;	/* Source IP address to use in probe packets */
+	t_sockaddrAny	sourceAddr; /* Storage for the parsed source address */
 	double			sendWait;		/* Time to wait between sending probe packets (in seconds) */
 	tBool			extensions;		/* Display ICMP extensions in probe responses */
 	tBool			asLookup;		/* Perform AS number lookup for IP addresses in probe responses */
 	char			*moduleName;	/* Name of the module to use for probing */
 	char			*moduleOpts;	/* Options to pass to the probing module */
 
-	int				sourcePort;		/* Source port to use when probing with UDP, DCCP or TCP */	int				fwmark;			/* Firewall mark to set on probe packets (Linux only) */
+	unsigned int	sourcePort;		/* Source port to use when probing with UDP, DCCP or TCP */
+	int				fwmark;			/* Firewall mark to set on probe packets (Linux only) */
 	tBool			discoverMtu;	/* Perform MTU discovery by sending probes with the "Don't Fragment" flag set and decreasing the packet size until a response is received */
 	tBool			backward;		/* Perform a backward traceroute by starting with a high TTL and decreasing it until the destination is reached */
 	tProbeMethod	method;			/* Method to use for probing (UDP, ICMP, TCP, UDPLite, DCCP or RAW) */
 	char			*interface;		/* Network interface to use for sending probe packets */
-	char			*gateways;		/* Comma-separated list of gateway IP addresses to use for probing (instead of the default route) */
+	char			*gateways[128];/* List of gateway IP addresses to use for source routing (comma-separated in the command line);
+									The list can be in multiple arguments, but the total number of gateways must not exceed 127 in all cases
+									so to be safe, we can limit to 128 total entries in the array (including the NULL terminator) */
+	int				gatewayCount;	/* Number of gateways specified in the list */
 	int				protocol;		/* IP protocol number to use in probe packets (only relevant for RAW method) */
+
+	unsigned int	packetSize;		/* Packet size to use for probes (if specified as a positional argument) */
 }	tTracerouteOptions;
 
 typedef enum eLongOption
@@ -92,7 +99,7 @@ typedef struct sParseResult
 # define PARSE_VERSION	2
 
 /**
- * Parse command line arguments and fill result structure
+ * @brief Parse command line arguments and fill result structure
  * @param argc Argument count
  * @param argv Argument vector
  * @param result Structure to fill with parsed values
@@ -103,14 +110,14 @@ int			parseArgs(int argc, char **argv, tParseResult *result);
 /* ----- Parser utility functions ----- */
 
 /**
- * Get description of expected argument format for an option
+ * @brief Get description of expected argument format for an option
  * @param opt Option character
  * @return String describing the expected argument format
  */
 const char	*getOptDescription(char opt);
 
 /**
- * Print error for bad option and exit
+ * @brief Print error for bad option and exit
  * @param badOpt The bad option character
  * @param badOptStr The bad option string (for long options)
  * @param badArgp Argument position where error occurred
@@ -119,7 +126,7 @@ const char	*getOptDescription(char opt);
 void		exitBadOption(char badOpt, const char *badOptStr, int badArgp, char *badArg);
 
 /**
- * Print error for missing argument and exit
+ * @brief Print error for missing argument and exit
  * @param opt The option that requires an argument
  * @param desc Description of expected argument format
  * @param badArgp Argument position where error occurred
@@ -127,19 +134,54 @@ void		exitBadOption(char badOpt, const char *badOptStr, int badArgp, char *badAr
 void		exitMissingArgument(const char *opt, const char *desc, int badArgp);
 
 /**
- * Print error for invalid numeric option argument and exit
+ * @brief Print error for invalid numeric option argument and exit
  * @param state Getopt state containing the option and argument
  */
 void		exitInvalidNumericOpt(tFtGetopt *state);
 
+/* ----- Parser validation functions ----- */
+
+/** 
+ * @brief Parse a port number from a string, which can be either a numeric port or a service name
+ * @param arg The argument string to parse
+ * @param port Pointer to store the parsed port number (in host byte order)
+ * @return TRUE on success, FALSE on failure (invalid port number or service name)
+ */
+tBool parsePort(const char *arg, unsigned int *port);
 
 /**
- * Check if a string contains only digits (strict number)
- * @param str String to check
- * @return TRUE if string is a valid number, FALSE otherwise
+ * @brief Parse an unsigned integer from a string
+ * @param arg The argument string to parse
+ * @param value Pointer to store the parsed unsigned integer
+ * @return TRUE on success, FALSE on failure (invalid integer)
  */
-tBool		isStrictNumber(const char *str);
+tBool parseUnsigned(const char *arg, unsigned int *value);
 
+/**
+ * @brief Parse a signed integer from a string
+ * @param arg The argument string to parse
+ * @param value Pointer to store the parsed integer
+ * @return TRUE on success, FALSE on failure (invalid integer)
+ */
+tBool parseInt(const char *arg, int *value);
+
+/**
+ * @brief Parse a double from a string
+ * @param arg The argument string to parse
+ * @param value Pointer to store the parsed double
+ * @return TRUE on success, FALSE on failure (invalid double)
+ */
+tBool parseDouble(const char *arg, double *value);
+
+/**
+ * @brief Resolve a hostname to an IP address
+ * @param name The hostname to resolve
+ * @param addr Pointer to store the resolved address (as a sockaddrAny)
+ * @return 0 on success, non-zero error code on failure
+ */
+int getAddr(const char *name, t_sockaddrAny *addr);
+
+/* ----- Long option parsing functions ----- */
 
 /**
  * @brief Check if the current long option matches the expected name and argument format
@@ -150,9 +192,9 @@ tBool		isStrictNumber(const char *str);
  * @param state The getopt state containing the current option being processed 
  * @param expected The expected long option name
  * @param hasArg Whether the option expects an argument
- * @return 1 if the option matches exactly, 0 otherwise
+ * @return TRUE if the option matches exactly, FALSE otherwise
  */
-int			isExactLongOption(tFtGetopt *state, const char *expected, tBool hasArg);
+tBool			isExactLongOption(tFtGetopt *state, const char *expected, tBool hasArg);
 
 /**
  * Check if a long option is in the correct format (with '=' for required arguments)

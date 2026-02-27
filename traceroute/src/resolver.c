@@ -78,23 +78,22 @@ static int resolveGateway(const char *gateway, int required_family)
  * - Maximum gateways limit (8 for IPv4, 127 for IPv6)
  * - Each gateway resolves and matches required family
  */
-static int validateGateways(tParseResult *parseResult, int family)
+static int validateGateways(tParseResult *parseResult, int index, int family)
 {
 	char **split;
 	int i;
-	int count;
 	int ret;
-	int max_gateways;
-	char *original = parseResult->options.gateways;
+	int maxGateways;
+	char *original = parseResult->options.gateways[index];
 
 	if (!original)
 		return (EXIT_SUCCESS);
 
 	/* Set maximum gateways based on address family */
-	max_gateways = (family == AF_INET6) ? MAX_GATEWAYS_IPV6 : MAX_GATEWAYS_IPV4;
+	maxGateways = (family == AF_INET6) ? MAX_GATEWAYS_IPV6 : MAX_GATEWAYS_IPV4;
 	
 	/* Check for leading comma or consecutive commas */
-	if (original[0] == ',' || ft_strstr(original, ",,"))
+	if (original[0] == ',' && !original[1])
 	{
 		ft_dprintf(STDERR_FILENO, ": Name or service not known\n\n");
 		return (EXIT_BAD_ARGS);
@@ -105,29 +104,13 @@ static int validateGateways(tParseResult *parseResult, int family)
 	if (!split)
 		return (EXIT_FAILURE);
 
-	count = ft_tablen((void **)split);
-	
-	/* Check for empty entries after trimming whitespace */
-	i = 0;
-	while (split[i])
-	{
-		char *trimmed = ft_strtrim(split[i], " \t");
-		if (!trimmed || trimmed[0] == '\0')
-		{
-			ft_dprintf(STDERR_FILENO, ": Name or service not known\n");
-			free(trimmed);
-			free_tab((void **)split);
-			return (EXIT_BAD_ARGS);
-		}
-		free(trimmed);
-		i++;
-	}
+	parseResult->options.gatewayCount += ft_tablen((void **)split);
 
 	/* Check maximum gateways limit */
-	if (count > max_gateways)
+	if (parseResult->options.gatewayCount > maxGateways)
 	{
 		ft_dprintf(STDERR_FILENO, 
-			"Too many gateways specified. No more than %d\n", max_gateways);
+			"Too many gateways specified. No more than %d\n", maxGateways);
 		free_tab((void **)split);
 		return (EXIT_BAD_ARGS);
 	}
@@ -165,7 +148,11 @@ int resolveDestination(tParseResult *parseResult,
 	else if (parseResult->options.v6)
 		family = IP_TYPE_V6;
 	else
+#if defined (HAJ)
 		family = IP_TYPE_UNSPEC;
+#else
+		family = IP_TYPE_V6; /* Default to IPv6 if no option specified, as modern systems prefer it */
+#endif
 
 	/* Resolve destination host */
 	ret = resolveHost(parseResult->positionals[0],
@@ -189,7 +176,7 @@ int resolveDestination(tParseResult *parseResult,
 	}
 
 	/* Check if second positional is a valid packet length */
-	if (parseResult->posCount == 2 && !isStrictNumber(parseResult->positionals[1]))
+	if (parseResult->posCount == 2 && !parseUnsigned(parseResult->positionals[1], &parseResult->options.packetSize))
 	{
 		ft_dprintf(STDERR_FILENO, 
 			"Cannot handle \"packetlen\" cmdline arg `%s' on position 2 (argc %d)\n",
@@ -199,11 +186,13 @@ int resolveDestination(tParseResult *parseResult,
 	}
 
 	/* Validate gateways if present */
-	if (parseResult->options.gateways)
+	int	gatewayIndex = 0;
+	while (gatewayIndex <= 128 && parseResult->options.gateways[gatewayIndex] != NULL)
 	{
-		ret = validateGateways(parseResult, dstAddr->ss_family);
+		ret = validateGateways(parseResult, gatewayIndex, dstAddr->ss_family);
 		if (ret != EXIT_SUCCESS)
 			return (ret);
+		gatewayIndex++;
 	}
 
 	return (EXIT_SUCCESS);

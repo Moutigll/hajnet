@@ -1,6 +1,9 @@
-#include <stdlib.h>
+#include <netdb.h>
 
-#include "../../hajlib/include/hchar.h"
+#include "../../common/includes/ip.h"
+
+#include "../../hajlib/include/hmath.h"
+#include "../../hajlib/include/hmemory.h"
 #include "../../hajlib/include/hprintf.h"
 #include "../../hajlib/include/hstring.h"
 
@@ -33,6 +36,7 @@ const tFtLongOption g_longOptions[] = {
 	{"udp", FT_GETOPT_NO_ARGUMENT, OPT_UDP},
 	{"mtu", FT_GETOPT_NO_ARGUMENT, OPT_MTU},
 	{"back", FT_GETOPT_NO_ARGUMENT, OPT_BACK},
+	{"protocol", FT_GETOPT_REQUIRED_ARGUMENT, OPT_PROTOCOL},
 	{"version", FT_GETOPT_NO_ARGUMENT, OPT_VERSION},
 	{"help", FT_GETOPT_NO_ARGUMENT, OPT_HELP},
 	{NULL, 0, 0}
@@ -44,20 +48,21 @@ const char *getOptDescription(char opt)
 	{
 		case 'f': return "first_ttl";
 		case 'm': return "max_ttl";
-		case 'N': return "sim_queries";
-		case 'q': return "queries";
+		case 'N': return "squeries";
+		case 'q': return "nqueries";
 		case 'p': return "port";
 		case 't': return "tos";
-		case 'l': return "flowlabel";
-		case 'w': return "wait";
+		case 'l': return "flow_label";
+		case 'w': return "MAX,HERE,NEAR";
 		case 'z': return "sendwait";
-		case 's': return "source";
-		case 'M': return "module";
+		case 's': return "src_addr";
+		case 'M': return "name";
 		case 'O': return "module_opts";
-		case 156: return "sport";
+		case 156: return "num";
 		case 157: return "fwmark";
 		case 'P': return "protocol";
 		case 'g': return "gate,...";
+		case 'i': return "interface";
 		default: return "unknown";
 	}
 }
@@ -109,38 +114,113 @@ void exitInvalidNumericOpt(tFtGetopt *state)
 	exit(EXIT_BAD_ARGS);
 }
 
-/* ----- Parser Validation Functions ----- */
 
-
-tBool isStrictNumber(const char *str)
+tBool parsePort(const char *arg, unsigned int *port)
 {
-	int i;
+	char			*endptr;
+	unsigned long	val;
+	struct servent	*service;
 
-	if (!str || !*str)
-		return (FALSE);
-
-	i = 0;
-	if (str[i] == '+' || str[i] == '-')
-		i++;
-
-	if (!str[i])
-		return (FALSE);
-
-	while (str[i])
-	{
-		if (!ft_isdigit(str[i]))
+	val = ft_strtoul(arg, &endptr, 0); /* Try to parse as number first */
+	
+	/* If we got a valid number and it's in the valid port range, use it */
+	if (endptr != arg) {
+# if defined (HAJ)
+		if (val > 65535 || val < 1)
 			return (FALSE);
-		i++;
+# endif
+		*port = (unsigned int)val;
+		return (TRUE);
 	}
+	
+	/* Try to resolve as service name */
+	service = getservbyname(arg, NULL);
+	if (service) {
+		*port = ipNtohs(service->s_port);
+		return (TRUE);
+	}
+	
+	/* Neither a valid number nor a known service name */
+	return (FALSE);
+}
+
+tBool parseUnsigned(const char *arg, unsigned int *value)
+{
+	char			*endptr;
+	unsigned long	val;
+
+	val = ft_strtoul(arg, &endptr, 0);
+	
+	if (endptr == arg || *endptr != '\0')
+		return (FALSE); /* Not a valid number */
+
+	*value = (unsigned int)val;
 	return (TRUE);
+}
+
+tBool parseInt(const char *arg, int *value)
+{
+	char	*endptr;
+	long	val;
+
+	val = ft_strtol(arg, &endptr, 0);
+	
+	if (endptr == arg || *endptr != '\0')
+		return (FALSE); /* Not a valid number */
+
+	*value = (int)val;
+	return (TRUE);
+}
+
+tBool parseDouble(const char *arg, double *value)
+{
+	char	*endptr;
+	double	val;
+
+	val = ft_strtod(arg, &endptr);
+	
+	if (endptr == arg || *endptr != '\0')
+		return (FALSE); /* Not a valid number */
+
+	*value = val;
+	return (TRUE);
+}
+
+int getAddr (const char *name, t_sockaddrAny *addr) 
+{
+	struct addrinfo hints;
+	struct addrinfo *res;
+	int ret;
+
+	if (!name || name[0] == '\0')
+		return (EAI_NONAME);
+
+	ft_bzero(&hints, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	ret = getaddrinfo(name, NULL, &hints, &res);
+	if (ret != 0)
+		return (ret);
+
+	if (res->ai_addrlen > sizeof(*addr))
+	{
+		freeaddrinfo(res);
+		return (EAI_MEMORY);
+	}
+
+	ft_memcpy(addr, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
+	return (0);
 }
 
 /* ----- Long Option Format Validation ----- */
 
-int isExactLongOption(tFtGetopt *state, const char *expected, tBool hasArg)
+tBool isExactLongOption(tFtGetopt *state, const char *expected, tBool hasArg)
 {
-	size_t len;
-	char *arg;
+	size_t	len;
+	char	*arg;
 
 	arg = state->argv[state->index - 1];
 	len = ft_strlen(expected);
@@ -149,7 +229,7 @@ int isExactLongOption(tFtGetopt *state, const char *expected, tBool hasArg)
 		exitBadOption('m', arg, state->index - 1, NULL);
 
 	if (!hasArg && arg[len] == '\0')
-		return (1);
+		return (TRUE);
 		
 	if (!hasArg)
 	{
@@ -162,15 +242,15 @@ int isExactLongOption(tFtGetopt *state, const char *expected, tBool hasArg)
 	}
 	
 	if (hasArg && arg[len] == '=')
-		return (1);
+		return (TRUE);
 
-	return (exitBadOption('m', state->argv[state->index - 1], state->index - 1, NULL), 0);
+	return (exitBadOption('m', state->argv[state->index - 1], state->index - 1, NULL), FALSE);
 }
 
 void checkLongOptionFormat(tFtGetopt *state, const tFtLongOption *long_opts, int opt_index)
 {
-	const char *token = state->argv[opt_index];
-	size_t token_len = ft_strlen(token);
+	const char	*token = state->argv[opt_index];
+	size_t		token_len = ft_strlen(token);
 
 	/* Only care about long options starting with -- */
 	if (token_len < 3 || token[0] != '-' || token[1] != '-')

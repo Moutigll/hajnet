@@ -1,19 +1,11 @@
-#include <arpa/inet.h>
-#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 
 #include "../../hajlib/include/hmemory.h"
 #include "../../hajlib/include/hprintf.h"
+#include "../../hajlib/include/hstring.h"
 
 #include "../includes/network.h"
-
-
-static void	fatalError(const char *msg)
-{
-	ft_dprintf(STDERR_FILENO, "Fatal error: %s\n", msg);
-	exit(EXIT_FAILURE);
-}
 
 void tracerouteSocketInit(tTracerouteSocket *ctx, int family, tProbeMethod method)
 {
@@ -69,7 +61,7 @@ int tracerouteSocketCreate(tTracerouteSocket *ctx, const tTracerouteOptions *opt
 	ctx->fd = socket(ctx->family, sockType, protocol);
 	if (ctx->fd < 0)
 	{
-		ft_dprintf(STDERR_FILENO, "socket() failed: %s\n", strerror(errno));
+		ft_dprintf(STDERR_FILENO, "\nsocket: %s\n", strerror(errno));
 		return (-1);
 	}
 
@@ -79,28 +71,26 @@ int tracerouteSocketCreate(tTracerouteSocket *ctx, const tTracerouteOptions *opt
 	if (opts->dontFragment && ctx->family == AF_INET)
 		setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &(int){IP_PMTUDISC_DO}, sizeof(int));
 
-	if (opts->sourceAddr)
+	if (opts->interface)
 	{
-		struct sockaddr_in	src4;
-		struct sockaddr_in6	src6;
-		ft_bzero(&src4, sizeof(src4));
-		ft_bzero(&src6, sizeof(src6));
-
-		if (ctx->family == AF_INET)
+		if (setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, opts->interface, ft_strlen(opts->interface)) < 0)
 		{
-			src4.sin_family = AF_INET;
-			if (!inet_pton(AF_INET, opts->sourceAddr, &src4.sin_addr))
-				fatalError("Invalid source IPv4 address");
-			if (bind(ctx->fd, (struct sockaddr *)&src4, sizeof(src4)) < 0)
-				fatalError("bind() source IPv4 failed");
+			ft_dprintf(STDERR_FILENO, "Failed to bind socket to interface `%s': %s\n", opts->interface, strerror(errno));
+			close(ctx->fd);
+			ctx->fd = -1;
+			return (-1);
 		}
-		else
+	}
+
+	if (opts->sourceAddr.sa.sa_family)
+	{
+		socklen_t addrLen = (opts->sourceAddr.sa.sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6);
+		if (bind(ctx->fd, (struct sockaddr *)&opts->sourceAddr, addrLen) < 0)
 		{
-			src6.sin6_family = AF_INET6;
-			if (!inet_pton(AF_INET6, opts->sourceAddr, &src6.sin6_addr))
-				fatalError("Invalid source IPv6 address");
-			if (bind(ctx->fd, (struct sockaddr *)&src6, sizeof(src6)) < 0)
-				fatalError("bind() source IPv6 failed");
+			ft_dprintf(STDERR_FILENO, "Failed to bind socket to source address: %s\n", strerror(errno));
+			close(ctx->fd);
+			ctx->fd = -1;
+			return (-1);
 		}
 	}
 

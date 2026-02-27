@@ -4,16 +4,16 @@
 
 #include "../includes/parser.h"
 
-static void handlePositional(tFtGetopt *state, tParseResult *result, int argc, char **argv)
+static void handlePositional(tFtGetopt *state, tParseResult *result, char **argv)
 {
 	if (result->posCount < 2)
 		result->positionals[result->posCount++] = argv[state->index++];
 	else
 	{
 		ft_dprintf(STDERR_FILENO,
-			"Extra arg '%s' (position %d, argc %d)\n",
-			argv[state->index], state->index, argc);
-		exit(EXIT_FAILURE);
+			"Extra arg `%s' (position 3, argc %d)\n",
+			argv[state->index], state->index);
+		exit(EXIT_BAD_ARGS);
 	}
 }
 
@@ -115,7 +115,7 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 
 		if (ret == FT_GETOPT_POSITIONAL)
 		{
-			handlePositional(&state, result, argc, argv);
+			handlePositional(&state, result, argv);
 			continue;
 		}
 		
@@ -132,31 +132,36 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 			case OPT_DEBUG:			result->options.debug			= TRUE; break;
 			case OPT_DONT_FRAGMENT:	result->options.dontFragment	= TRUE; break;
 			case OPT_FIRST_TTL:
-				if (!isStrictNumber(state.optArg))
+				if (!parseUnsigned(state.optArg, &result->options.firstTtl))
 					exitInvalidNumericOpt(&state);
-				result->options.firstTtl = ft_atoi(state.optArg);
 				break;
 			case OPT_MAX_HOPS:
-				if (!isStrictNumber(state.optArg))
+				if (!parseUnsigned(state.optArg, &result->options.maxTtl))
 					exitInvalidNumericOpt(&state);
-				result->options.maxTtl = ft_atoi(state.optArg);
 				break;
 			case OPT_QUERIES:		result->options.queries			= ft_atoi(state.optArg);	break;
 			case OPT_SIM_QUERIES:	result->options.simQueries		= ft_atoi(state.optArg);	break;
 			case OPT_NUMERIC:		result->options.numeric			= TRUE;							break;
-			case OPT_PORT:			result->options.port			= ft_atoi(state.optArg);	break;
+			case OPT_PORT:
+				if (!parsePort(state.optArg, &result->options.port))
+					exitInvalidNumericOpt(&state);
+				break;
 			case OPT_TOS:			result->options.tos				= ft_atoi(state.optArg);	break;
 			case OPT_FLOWLABEL:		result->options.flowLabel		= ft_atoi(state.optArg);	break;
 			case OPT_WAIT:			result->options.waitSpec.max	= ft_atod(state.optArg);	break;
 			case OPT_BYPASS:		result->options.bypassRouting	= TRUE;							break;
-			case OPT_SOURCE:		result->options.sourceAddr		= state.optArg;					break;
+			case OPT_SOURCE:
+				if (getAddr(state.optArg, &result->options.sourceAddr) != 0)
+					exitBadOption('s', state.optArg, state.index - 1, NULL);
+				break;
 			case OPT_SENDWAIT:		result->options.sendWait		= ft_atod(state.optArg);	break;
 			case OPT_EXTENSIONS:	result->options.extensions		= TRUE; 						break;
 			case OPT_AS_LOOKUP:		result->options.asLookup		= TRUE; 						break;
 			case OPT_MODULE:		result->options.moduleName		= state.optArg;					break;
 			case OPT_OPTIONS:		result->options.moduleOpts		= state.optArg;					break;
 			case OPT_SPORT:
-				result->options.sourcePort = ft_atoi(state.optArg);
+				if (!parsePort(state.optArg, &result->options.sourcePort))
+					exitInvalidNumericOpt(&state);
 				result->options.simQueries = 1;
 				break;
 			case OPT_FWMARK:		result->options.fwmark			= ft_atoi(state.optArg);	break;
@@ -175,8 +180,15 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 				result->options.method = PROBE_RAW;
 				result->options.protocol = ft_atoi(state.optArg);
 				break;
-			case OPT_INTERFACE:		result->options.interface = state.optArg;						break;
-			case OPT_GATEWAY:		result->options.gateways = state.optArg;						break;
+			case OPT_INTERFACE:		result->options.interface		= state.optArg;						break;
+			case OPT_GATEWAY:
+			{
+				int gatewayIndex = 0;
+				while (gatewayIndex <= 128 && result->options.gateways[gatewayIndex] != NULL)
+					gatewayIndex++;
+				result->options.gateways[gatewayIndex] = state.optArg; /* Just set the pointer of ther argv argument in the table */
+				break;
+			}
 			case OPT_MTU:
 				isExactLongOption(&state, "--mtu", FALSE);
 				result->options.discoverMtu = TRUE;
@@ -199,9 +211,9 @@ int parseArgs(int argc, char **argv, tParseResult *result)
 		else
 		{
 			ft_dprintf(STDERR_FILENO,
-				"Extra arg '%s' (position %d, argc %d)\n",
-				argv[state.index], state.index, argc);
-			exit(EXIT_FAILURE);
+				"Extra arg `%s' (position 3, argc %d)\n",
+				argv[state.index], state.index);
+			exit(EXIT_BAD_ARGS);
 		}
 	}
 
